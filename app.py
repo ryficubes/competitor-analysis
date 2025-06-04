@@ -176,7 +176,7 @@ def display_advancement_stats(summary_df):
 
 def get_recent_times(player_id, cube_category, times_amount):
     pulled_lines = []
-    with open('/content/WCA_export.sql', 'r') as file:
+    with open('WCA_export.sql', 'r') as file:
         for line in file:
             if player_id in line and cube_category in line:
                 pulled_lines.append(line)
