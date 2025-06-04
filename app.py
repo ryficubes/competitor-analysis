@@ -24,6 +24,9 @@ from bs4 import BeautifulSoup
 import re
 import pandas as pd
 
+
+st.title("Rubik's Cube Competitor Analysis")
+
 uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
 st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
 st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
@@ -298,7 +301,7 @@ def build_data_and_kde(group_list, cube_category, times_amount, min_solves=10):
     return data_list, kde_list, valid_names
 
 
-st.title("Rubik's Cube Competitor Analysis")
+
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
 new_option = ''
 if option == "2x2":
