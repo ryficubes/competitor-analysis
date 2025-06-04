@@ -278,7 +278,7 @@ def get_cstimer_times(file, event):
 
   return times_list
 
-def build_data_and_kde(group_list, cube_category, times_amount, min_solves=10, all_lines):
+def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_solves=10, ):
     data_list = []
     kde_list = []
     valid_names = []
@@ -374,7 +374,7 @@ if st.button("Submit"):
     kde_list = []
     printed = []
     #st.write(user_list)
-    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, simulations, all_lines)
+    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
     st.write(len(data_list))
     st.write(len(player_names))
     st.write('Done Getting KDE + DATA')
