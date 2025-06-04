@@ -349,12 +349,17 @@ new_times = (times / 5) * -1
 times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
-cstimer_file = st.file_uploader("Choose a file", type = ['txt'])
+include_cstimer = st.checkbox("Include csTimer?")
 
-if st.button("Submit csTimer Times"):
-  grabbed_times = get_cstimer_times(cstimer_file, option)
+if include_cstimer:
+    cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
+    if cstimer_file is not None:
+        if st.button("Submit csTimer Times"):
+            grabbed_times = get_cstimer_times(cstimer_file, event_option)
+            st.success("csTimer times loaded!")
 
 if st.button("Submit"):
+  st.write("Loading 🔄")
   # Step 1: Get latest export info
   r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
   sql_url = r["sql_url"]
