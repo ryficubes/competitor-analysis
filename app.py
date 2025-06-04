@@ -375,7 +375,8 @@ if st.button("Submit"):
       all_lines = file.readlines()
   st.success("Data Loaded!")
 
-  if include_cstimer == None:
+  if include_cstimer == False:
+    st.write("Testing")
     data_list = []
     kde_list = []
     printed = []
@@ -398,7 +399,7 @@ if st.button("Submit"):
     printed = []
     #st.write(user_list)
     st.write("Loading 🔄")
-    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, simulations)
+    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
     st.write(len(data_list))
     st.write(len(player_names))
     st.write('Done Getting KDE + Solves')
