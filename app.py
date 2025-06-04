@@ -393,7 +393,6 @@ if st.button("Submit"):
     display_top_rankings(summary_df)
     display_advancement_stats(summary_df)
   else:
-    grabbed_times = get_cstimer_times(cstimer_file, option)
     data_list = []
     kde_list = []
     printed = []
