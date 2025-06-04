@@ -349,13 +349,13 @@ new_times = (times / 5) * -1
 times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
-include_cstimer = st.checkbox("Include csTimer?")
+include_cstimer = st.checkbox("Include csTimer times?")
 
 if include_cstimer:
     cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
     if cstimer_file is not None:
         if st.button("Submit csTimer Times"):
-            grabbed_times = get_cstimer_times(cstimer_file, event_option)
+            grabbed_times = get_cstimer_times(cstimer_file, option)
             st.success("csTimer times loaded!")
 
 if st.button("Submit"):
@@ -373,8 +373,9 @@ if st.button("Submit"):
   # At top-level, after extracting SQL
   with open('WCA_export.sql', 'r') as file:
       all_lines = file.readlines()
+  st.success("Data Loaded!")
 
-  if cstimer_file == None:
+  if include_cstimer == None:
     data_list = []
     kde_list = []
     printed = []
@@ -382,7 +383,7 @@ if st.button("Submit"):
     data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
     st.write(len(data_list))
     st.write(len(player_names))
-    st.write('Done Getting KDE + DATA')
+    st.write('Done Getting KDE + Solves')
     df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
     st.write('Done Simulating')
     summary_df = summarize_simulation_results(df_simulated)
@@ -401,7 +402,7 @@ if st.button("Submit"):
     data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, simulations)
     st.write(len(data_list))
     st.write(len(player_names))
-    st.write('Done Getting KDE + DATA')
+    st.write('Done Getting KDE + Solves')
     df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
     st.write('Done Simulating')
     summary_df = summarize_simulation_results(df_simulated)
