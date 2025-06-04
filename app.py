@@ -177,12 +177,8 @@ def display_advancement_stats(summary_df):
         "Made Finals": "{:.0%}"
     }))
 
-def get_recent_times(player_id, cube_category, times_amount):
-    pulled_lines = []
-    with open('WCA_export.sql', 'r') as file:
-        for line in file:
-            if player_id in line and cube_category in line:
-                pulled_lines.append(line)
+def get_recent_times(player_id, cube_category, times_amount, all_lines):
+    pulled_lines = [line for line in all_lines if player_id in line and cube_category in line]
 
     if not pulled_lines:
         return None  # No matching lines found
@@ -282,13 +278,13 @@ def get_cstimer_times(file, event):
 
   return times_list
 
-def build_data_and_kde(group_list, cube_category, times_amount, min_solves=10):
+def build_data_and_kde(group_list, cube_category, times_amount, min_solves=10, all_lines):
     data_list = []
     kde_list = []
     valid_names = []
 
     for player_id in group_list:
-        data = get_recent_times(player_id, cube_category, times_amount)
+        data = get_recent_times(player_id, cube_category, times_amount, all_lines)
         if data is None:
             st.warning(f"⚠️ Skipping {player_id} due to missing/short data")
             continue
@@ -363,19 +359,22 @@ if st.button("Submit"):
   r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
   sql_url = r["sql_url"]
 
-  # Step 2: Download and unzip to /content
+  # Step 2: Download and unzip
   response = requests.get(sql_url)
   with zipfile.ZipFile(io.BytesIO(response.content)) as z:
       for name in z.namelist():
           if name.endswith(".sql"):
               z.extract(name, ".")
+  # At top-level, after extracting SQL
+  with open('WCA_export.sql', 'r') as file:
+      all_lines = file.readlines()
 
   if cstimer_file == None:
     data_list = []
     kde_list = []
     printed = []
     #st.write(user_list)
-    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, simulations)
+    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, simulations, all_lines)
     st.write(len(data_list))
     st.write(len(player_names))
     st.write('Done Getting KDE + DATA')
@@ -392,9 +391,16 @@ if st.button("Submit"):
     data_list = []
     kde_list = []
     printed = []
+    #st.write(user_list)
+    st.write("Loading 🔄")
     data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, simulations)
-    df_simulated = simulate_rounds_behavioral(data_list, player_names)
+    st.write(len(data_list))
+    st.write(len(player_names))
+    st.write('Done Getting KDE + DATA')
+    df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
+    st.write('Done Simulating')
     summary_df = summarize_simulation_results(df_simulated)
+    st.write('Done Summarizing')
 
     display_summary_table(summary_df)
     display_top_rankings(summary_df)
