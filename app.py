@@ -365,7 +365,7 @@ if st.button("Submit"):
   with zipfile.ZipFile(io.BytesIO(response.content)) as z:
       for name in z.namelist():
           if name.endswith(".sql"):
-              z.extract(name, "/content")
+              z.extract(name, ".")
 
   if cstimer_file == None:
     data_list = []
