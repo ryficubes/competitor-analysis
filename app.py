@@ -28,29 +28,40 @@ import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
 
-uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
-st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
-st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
-if uploaded_file:
-    soup = BeautifulSoup(uploaded_file, "html.parser")
+# Let user choose input method
+st.markdown("### Choose how you want to input competitor data")
+input_method = st.radio("Select input method:", ["Upload HTML File", "Enter WCA IDs Manually"])
 
-    # Extract WCA IDs from hrefs
-    links = soup.find_all("a", href=True)
-    user_list = sorted({
-        match.group(1)
-        for link in links
-        if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
-    })
+user_list = []
 
-    if user_list:
-        df = pd.DataFrame(user_list, columns=["WCA ID"])
-        st.success(f"✅ Extracted {len(user_list)} WCA IDs")
-        st.dataframe(df)
+if input_method == "Upload HTML File":
+    uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
+    st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
+    st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
+    
+    if uploaded_file:
+        soup = BeautifulSoup(uploaded_file, "html.parser")
+        links = soup.find_all("a", href=True)
+        user_list = sorted({
+            match.group(1)
+            for link in links
+            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
+        })
 
-        #csv = df.to_csv(index=False).encode("utf-8")
-        #st.download_button("📥 Download CSV", csv, "wca_ids.csv", "text/csv")
-    else:
-        st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
+        if user_list:
+            df = pd.DataFrame(user_list, columns=["WCA ID"])
+            st.success(f"✅ Extracted {len(user_list)} WCA IDs")
+            st.dataframe(df)
+        else:
+            st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
+
+elif input_method == "Enter WCA IDs Manually":
+    user_input = st.text_area("Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)")
+    if user_input:
+        user_list = [id.strip() for id in user_input.split(",") if id.strip()]
+        if user_list:
+            st.success(f"✅ Collected {len(user_list)} WCA IDs")
+            st.write(user_list)
 
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
