@@ -297,6 +297,39 @@ def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_s
 
     return data_list, kde_list, valid_names
 
+def build_data_and_kde_with_progress(group_list, cube_category, times_amount, all_lines, min_solves=10):
+    data_list = []
+    kde_list = []
+    valid_names = []
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    timer_text = st.empty()
+    start_time = time.time()
+
+    total = len(group_list)
+
+    for i, player_id in enumerate(group_list):
+        elapsed = time.time() - start_time
+        timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
+        status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
+
+        data = get_recent_times(player_id, cube_category, times_amount, all_lines)
+        if data is None:
+            continue
+
+        kde = gaussian_kde(data, bw_method=0.2)
+        data_list.append(data)
+        kde_list.append(kde)
+        valid_names.append(player_id)
+
+        progress_bar.progress((i + 1) / total)
+
+    status_text.markdown(f"✅ Done! Processed **{len(valid_names)} competitors**.")
+    elapsed = time.time() - start_time
+    timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
+
+    return data_list, kde_list, valid_names
 
 
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
@@ -350,7 +383,7 @@ new_times = (times / 5) * -1
 times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
-include_cstimer = st.checkbox("Include csTimer times?")
+#include_cstimer = st.checkbox("Include csTimer times?")
 
 if include_cstimer:
     cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
@@ -381,9 +414,9 @@ if st.button("Submit"):
     st.success("✅ Data Loaded!")
 
     if not include_cstimer:
-        data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
+        data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
     else:
-        data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
+        data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
 
     st.success("✅ Finished Getting KDE + Solves")
     df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
