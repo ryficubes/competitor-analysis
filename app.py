@@ -1,4 +1,5 @@
 import warnings
+import time
 warnings.filterwarnings("ignore")
 import streamlit as st
 import numpy as np
@@ -359,59 +360,47 @@ if include_cstimer:
             st.success("csTimer times loaded!")
 
 if st.button("Submit"):
-  st.write("Loading 🔄")
-  # Step 1: Get latest export info
-  r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
-  sql_url = r["sql_url"]
+    start_time = time.time()  # ⏱️ Start timer
+    st.write("⏳ Loading...")
 
-  # Step 2: Download and unzip
-  response = requests.get(sql_url)
-  with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-      for name in z.namelist():
-          if name.endswith(".sql"):
-              z.extract(name, ".")
-  # At top-level, after extracting SQL
-  with open('WCA_export.sql', 'r') as file:
-      all_lines = file.readlines()
-  st.success("Data Loaded!")
+    # Step 1: Get latest export info
+    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
+    sql_url = r["sql_url"]
 
-  if include_cstimer == False:
-    st.write("Testing")
-    data_list = []
-    kde_list = []
-    printed = []
-    #st.write(user_list)
-    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
-    st.write(len(data_list))
-    st.write(len(player_names))
-    st.write('Done Getting KDE + Solves')
+    # Step 2: Download and unzip
+    response = requests.get(sql_url)
+    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+        for name in z.namelist():
+            if name.endswith(".sql"):
+                z.extract(name, ".")
+
+    # Step 3: Read SQL content
+    with open('WCA_export.sql', 'r') as file:
+        all_lines = file.readlines()
+
+    st.success("✅ Data Loaded!")
+
+    if not include_cstimer:
+        data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
+    else:
+        data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
+
+    st.success("✅ Finished Getting KDE + Solves")
     df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
-    st.write('Done Simulating')
     summary_df = summarize_simulation_results(df_simulated)
-    st.write('Done Summarizing')
 
+    st.success("✅ Finished Simulating and Summarizing")
+
+    end_time = time.time()  # ⏱️ End timer
+    total_time = end_time - start_time
+
+    st.info(f"🧠 **Processed data for {len(player_names)} competitors**")
+    st.info(f"⏲️ **Total runtime: {total_time:.2f} seconds**")
+
+    # Display
     display_summary_table(summary_df)
     display_top_rankings(summary_df)
     display_advancement_stats(summary_df)
-  else:
-    data_list = []
-    kde_list = []
-    printed = []
-    #st.write(user_list)
-    st.write("Loading 🔄")
-    data_list, kde_list, player_names = build_data_and_kde(user_list, new_option, times_amount, all_lines, simulations)
-    st.write(len(data_list))
-    st.write(len(player_names))
-    st.write('Done Getting KDE + Solves')
-    df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
-    st.write('Done Simulating')
-    summary_df = summarize_simulation_results(df_simulated)
-    st.write('Done Summarizing')
-
-    display_summary_table(summary_df)
-    display_top_rankings(summary_df)
-    display_advancement_stats(summary_df)
-
   # Sample data
   #for j, data in enumerate(data_list):
 
