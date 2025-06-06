@@ -36,8 +36,8 @@ user_list = []
 
 if input_method == "Upload HTML File":
     uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
-    st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
-    st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
+    #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
+    #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
     
     if uploaded_file:
         soup = BeautifulSoup(uploaded_file, "html.parser")
@@ -189,29 +189,30 @@ def display_advancement_stats(summary_df):
         "Made Finals": "{:.0%}"
     }))
 
-def get_recent_times(player_id, cube_category, times_amount, all_lines):
+def get_recent_times_and_name(player_id, cube_category, times_amount, all_lines):
     pulled_lines = [line for line in all_lines if player_id in line and cube_category in line]
-
     if not pulled_lines:
-        return None  # No matching lines found
+        return None, None
 
     most_recent = pulled_lines[times_amount:]
     times = []
+    name = None
     for entry in most_recent:
-        times += entry.split(',')[10:15]
+        parts = entry.split(',')
+        times += parts[10:15]
+        if not name:
+            name = parts[6].strip().strip("'")  # Name is the 7th element (index 6)
 
     try:
         int_list = np.asarray([int(x) for x in times if x.strip().isdigit()])
     except ValueError:
-        return None  # Invalid int conversion
+        return None, name  # Still return the name if times fail
 
-    int_list = int_list[int_list > 0]  # Removes -1 (DNF), 0 (DNS)
-
+    int_list = int_list[int_list > 0]
     if len(int_list) == 0:
-        return None
+        return None, name
 
-    return [x / 100 for x in int_list]
-
+    return [x / 100 for x in int_list], name
 
 def build_adaptive_kde(data):
     mean, std, cv = describe_solver(data)
@@ -325,14 +326,14 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
         timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
         status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
 
-        data = get_recent_times(player_id, cube_category, times_amount, all_lines)
+        data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
         if data is None:
             continue
 
         kde = gaussian_kde(data, bw_method=0.2)
         data_list.append(data)
         kde_list.append(kde)
-        valid_names.append(player_id)
+        valid_names.append(f"{name} ({player_id})")  # Use "Name (WCA ID)" format
 
         progress_bar.progress((i + 1) / total)
 
@@ -341,6 +342,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
 
     return data_list, kde_list, valid_names
+
 
 
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
