@@ -333,7 +333,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
         data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
 
-        **# Skip if not enough valid times**
+        # Skip if not enough valid times
         if data is None or len(data) < 2:
             st.warning(f"⚠️ Skipping {name or player_id} – not enough valid solves")
             continue
