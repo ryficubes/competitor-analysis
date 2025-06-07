@@ -377,7 +377,7 @@ elif option =='Clock':
 elif option =='Megaminx':
   new_option = 'minx'
 elif option =='Pyraminx':
-  new_option = 'pyra'
+  new_option = 'pyram'
 elif option =='Skewb':
   new_option = 'skewb'
 elif option =='Square-1':
