@@ -448,9 +448,10 @@ if st.button("Submit"):
     st.info(f"⏲️ **Total runtime: {total_time:.2f} seconds**")
 
     # Display
-    display_summary_table(summary_df)
+    
     display_top_rankings(summary_df)
     display_advancement_stats(summary_df)
+    display_summary_table(summary_df)
   # Sample data
   #for j, data in enumerate(data_list):
 
