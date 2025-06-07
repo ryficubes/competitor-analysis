@@ -3,7 +3,7 @@ import time
 warnings.filterwarnings("ignore")
 import streamlit as st
 import numpy as np
-import random as random
+import random as randomx
 from scipy.stats import gaussian_kde
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
@@ -367,7 +367,7 @@ elif option =='3x3 Blindfolded':
 elif option =='FMC':
   new_option = '333fm'
 elif option =='3x3 OH':
-  new_option = '333oh'
+  new_option = "'333oh'"
 elif option =='Clock':
   new_option = 'clock'
 elif option =='Megaminx':
