@@ -332,13 +332,16 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
         status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
 
         data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
-        if data is None:
+
+        **# Skip if not enough valid times**
+        if data is None or len(data) < 2:
+            st.warning(f"⚠️ Skipping {name or player_id} – not enough valid solves")
             continue
 
         kde = gaussian_kde(data, bw_method=0.2)
         data_list.append(data)
         kde_list.append(kde)
-        valid_names.append(f"{name} ({player_id})")  # Use "Name (WCA ID)" format
+        valid_names.append(f"{name} ({player_id})")
 
         progress_bar.progress((i + 1) / total)
 
@@ -347,6 +350,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
 
     return data_list, kde_list, valid_names
+
 
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
 new_option = ''
