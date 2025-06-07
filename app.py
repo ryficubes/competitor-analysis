@@ -25,7 +25,7 @@ import re
 import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
-st.write("Similar to sports, statisticians are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
+st.write("Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
 # Let user choose input method
 st.markdown("### Choose how you want to input competitor data")
 input_method = st.radio("Select input method:", ["Upload HTML File", "Enter WCA IDs Manually"])
