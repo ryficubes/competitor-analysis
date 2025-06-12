@@ -1,4 +1,3 @@
-
 import warnings
 import time
 warnings.filterwarnings("ignore")
@@ -16,8 +15,6 @@ import requests, zipfile, io
 import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
-
-
 
 st.title("Rubik's Cube Competitor Analysis")
 st.write("Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
@@ -118,7 +115,6 @@ def summarize_simulation_results(df):
         'Final_Placement': 'mean'
     }).reset_index()
 
-    # Handle NaNs gracefully
     if df_summary['Final_Placement'].isna().all():
         df_summary['Estimated_Rank'] = np.nan
         df_summary['Estimated_Rank_Display'] = "Not Ranked"
@@ -128,17 +124,17 @@ def summarize_simulation_results(df):
             lambda x: str(int(x)) if not pd.isna(x) else "Not Ranked"
         )
 
-    return df_summary.sort_values('Estimated_Rank', na_position="last")
+    df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank_Display'].astype("string")
+    return df_summary
 
 def display_summary_tables(summary_df):
     st.subheader("📊 Full Summary")
-    st.dataframe(summary_df.astype({"Estimated_Rank_Display": "string"}).style.format(precision=2))
+    st.dataframe(summary_df)
 
     st.subheader("🏆 Final Estimated Rankings")
     if 'Estimated_Rank' in summary_df.columns:
-        summary_df = summary_df.sort_values('Estimated_Rank', na_position="last")
-
-    st.table(summary_df[['Competitor', 'Final_Placement', 'Estimated_Rank_Display']])
+        ranked = summary_df[['Competitor', 'Final_Placement', 'Estimated_Rank_Display']].copy()
+        st.table(ranked)
 
     st.subheader("🔁 Advancement Probabilities")
     adv_df = summary_df[['Competitor', 'Advanced_R1', 'Advanced_R2']].rename(columns={
@@ -177,7 +173,7 @@ def get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
         return None, name
     return [x / 100 for x in int_list], name
 
-# Options
+# Event mapping
 event_map = {
     "2x2": "222", "3x3": "'333'", "4x4": "'444'", "5x5": "'555'", "6x6": "666", "7x7": "777",
     "3x3 Blindfolded": "333bf", "FMC": "333fm", "3x3 OH": "'333oh'", "Clock": "clock",
@@ -192,6 +188,7 @@ times_amount = int((times / 5) * -1)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
 if st.button("Submit"):
+    st.write("⏳ Loading...")
     r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
     sql_url = r["sql_url"]
     response = requests.get(sql_url)
@@ -202,6 +199,7 @@ if st.button("Submit"):
     with open('WCA_export.sql', 'r') as file:
         all_lines = file.readlines()
     st.success("✅ Data Loaded!")
+
     progress_bar = st.progress(0)
     status_text = st.empty()
     data_list, kde_list, valid_names = [], [], []
@@ -219,32 +217,10 @@ if st.button("Submit"):
     df_simulated = simulate_rounds_behavioral(data_list, valid_names, simulations)
     summary_df = summarize_simulation_results(df_simulated)
 
-selected = st.multiselect("📈 Select competitors to view KDE graph and stats:", valid_names)
-for j, name in enumerate(valid_names):
-    if name not in selected:
-        continue
-    data = data_list[j]
-    kde = kde_list[j]
-    x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-    pdf_values = kde(x_values)
-    mean, std, n = np.mean(data), np.std(data, ddof=1), len(data)
-    z = stats.norm.ppf(0.975)
-    ci_lower, ci_upper = mean - z * std / np.sqrt(n), mean + z * std / np.sqrt(n)
-    pi_lower, pi_upper = mean - z * std * np.sqrt(1 + 1/n), mean + z * std * np.sqrt(1 + 1/n)
-    fig, ax = plt.subplots()
-    ax.plot(x_values, pdf_values, label="Estimated PDF")
-    ax.axvline(mean, color='blue', label='Mean')
-    ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
-    ax.axvline(ci_upper, color='green', linestyle='--')
-    ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
-    ax.axvline(pi_upper, color='orange', linestyle=':')
-    ax.set_xlabel("Solve Time (seconds)")
-    ax.set_ylabel("Probability Density")
-    ax.set_title(f"KDE for {name}")
-    ax.legend()
-    st.markdown(f"### 📈 Stats for {name}")
-    st.write(f"**Mean:** {mean:.2f} seconds")
-    st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
-    st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
-    st.pyplot(fig)
-display_summary_tables(summary_df)
+    # Save all important results into session_state to persist through reruns
+    st.session_state["player_names"] = valid_names
+    st.session_state["data_list"] = data_list
+    st.session_state["kde_list"] = kde_list
+    st.session_state["summary_df"] = summary_df
+
+    display_summary_tables(summary_df)
