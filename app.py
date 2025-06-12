@@ -459,30 +459,30 @@ if st.button("Submit"):
     display_summary_table(summary_df)
   # Sample data
 selected = st.multiselect("📈 Select competitors to view KDE graph and stats:", valid_names)
-    for j, name in enumerate(valid_names):
-        if name not in selected:
-            continue
-        data = data_list[j]
-        kde = kde_list[j]
-        x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-        pdf_values = kde(x_values)
-        mean, std, n = np.mean(data), np.std(data, ddof=1), len(data)
-        z = stats.norm.ppf(0.975)
-        ci_lower, ci_upper = mean - z * std / np.sqrt(n), mean + z * std / np.sqrt(n)
-        pi_lower, pi_upper = mean - z * std * np.sqrt(1 + 1/n), mean + z * std * np.sqrt(1 + 1/n)
-        fig, ax = plt.subplots()
-        ax.plot(x_values, pdf_values, label="Estimated PDF")
-        ax.axvline(mean, color='blue', label='Mean')
-        ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
-        ax.axvline(ci_upper, color='green', linestyle='--')
-        ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
-        ax.axvline(pi_upper, color='orange', linestyle=':')
-        ax.set_xlabel("Solve Time (seconds)")
-        ax.set_ylabel("Probability Density")
-        ax.set_title(f"KDE for {name}")
-        ax.legend()
-        st.markdown(f"### 📈 Stats for {name}")
-        st.write(f"**Mean:** {mean:.2f} seconds")
-        st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
-        st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
-        st.pyplot(fig)
+for j, name in enumerate(valid_names):
+    if name not in selected:
+        continue
+    data = data_list[j]
+    kde = kde_list[j]
+    x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
+    pdf_values = kde(x_values)
+    mean, std, n = np.mean(data), np.std(data, ddof=1), len(data)
+    z = stats.norm.ppf(0.975)
+    ci_lower, ci_upper = mean - z * std / np.sqrt(n), mean + z * std / np.sqrt(n)
+    pi_lower, pi_upper = mean - z * std * np.sqrt(1 + 1/n), mean + z * std * np.sqrt(1 + 1/n)
+    fig, ax = plt.subplots()
+    ax.plot(x_values, pdf_values, label="Estimated PDF")
+    ax.axvline(mean, color='blue', label='Mean')
+    ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
+    ax.axvline(ci_upper, color='green', linestyle='--')
+    ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
+    ax.axvline(pi_upper, color='orange', linestyle=':')
+    ax.set_xlabel("Solve Time (seconds)")
+    ax.set_ylabel("Probability Density")
+    ax.set_title(f"KDE for {name}")
+    ax.legend()
+    st.markdown(f"### 📈 Stats for {name}")
+    st.write(f"**Mean:** {mean:.2f} seconds")
+    st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
+    st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
+    st.pyplot(fig)
