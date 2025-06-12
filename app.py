@@ -17,6 +17,17 @@ import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
 
+r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
+sql_url = r["sql_url"]
+response = requests.get(sql_url)
+with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+    for name in z.namelist():
+        if name.endswith(".sql"):
+            z.extract(name, ".")
+with open('WCA_export.sql', 'r') as file:
+    all_lines = file.readlines()
+st.success("✅ Data Loaded!")
+
 st.title("Rubik's Cube Competitor Analysis")
 st.write("Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
 
@@ -190,17 +201,6 @@ times_amount = int((times / 5) * -1)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
 if st.button("Submit"):
-    st.write("⏳ Loading...")
-    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
-    sql_url = r["sql_url"]
-    response = requests.get(sql_url)
-    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-        for name in z.namelist():
-            if name.endswith(".sql"):
-                z.extract(name, ".")
-    with open('WCA_export.sql', 'r') as file:
-        all_lines = file.readlines()
-    st.success("✅ Data Loaded!")
     progress_bar = st.progress(0)
     status_text = st.empty()
     data_list, kde_list, valid_names = [], [], []
