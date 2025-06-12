@@ -119,7 +119,7 @@ def summarize_simulation_results(df):
         df_summary['Final_Placement'].rank(method="min").fillna(np.nan)
     )
     df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
-        lambda x: int(x) if not pd.isna(x) else "Not Ranked"
+        lambda x: str(int(x)) if not pd.isna(x) else "Not Ranked"
     )
     return df_summary.sort_values('Estimated_Rank', na_position="last")
 
