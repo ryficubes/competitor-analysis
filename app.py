@@ -414,6 +414,10 @@ if include_cstimer:
             grabbed_times = get_cstimer_times(cstimer_file, option)
             st.success("csTimer times loaded!")
 
+st.markdown("### Set Advancement Rules")
+r1_cutoff = st.number_input("How many competitors advance from Round 1 to Round 2?", min_value=1, max_value=200, value=60, step=1)
+r2_cutoff = st.number_input("How many competitors advance from Round 2 to Finals?", min_value=1, max_value=100, value=20, step=1)
+
 if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
     st.write("⏳ Loading...")
@@ -441,7 +445,7 @@ if st.button("Submit"):
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
 
     st.success("✅ Finished Getting KDE + Solves")
-    df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
+    df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations, r1_cutoff=r1_cutoff, r2_cutoff=r2_cutoff)
     summary_df = summarize_simulation_results(df_simulated)
 
     st.success("✅ Finished Simulating and Summarizing")
