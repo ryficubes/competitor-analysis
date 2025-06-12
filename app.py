@@ -450,40 +450,38 @@ if st.button("Submit"):
 
     st.info(f"🧠 **Processed data for {len(player_names)} competitors**")
     st.info(f"⏲️ **Total runtime: {total_time:.2f} seconds**")
-    
-    # Ask user which KDEs to plot
+    st.session_state["player_names"] = player_names
+    st.session_state["data_list"] = data_list
+    st.session_state["kde_list"] = kde_list
+    st.session_state["summary_df"] = summary_df
+
+if "player_names" in st.session_state:
     selected_competitors = st.multiselect(
         "📈 Select competitors to view KDE graph and stats:",
-        options=player_names,
+        options=st.session_state["player_names"],
         help="Choose specific competitors to visualize their KDE, mean, confidence intervals, and prediction intervals."
     )
-    # Display
-    
-    display_top_rankings(summary_df)
-    display_advancement_stats(summary_df)
-    display_summary_table(summary_df)
-  # Sample data
-  # Display KDE plots only for selected competitors
-    for j, name in enumerate(player_names):
+
+    for j, name in enumerate(st.session_state["player_names"]):
         if name not in selected_competitors:
             continue
-    
-        data = data_list[j]
-        kde = kde_list[j]
-    
+
+        data = st.session_state["data_list"][j]
+        kde = st.session_state["kde_list"][j]
+
         x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
         pdf_values = kde(x_values)
-    
+
         mean = np.mean(data)
         std = np.std(data, ddof=1)
         n = len(data)
         z = stats.norm.ppf(0.975)
-    
+
         ci_lower = mean - z * std / np.sqrt(n)
         ci_upper = mean + z * std / np.sqrt(n)
         pi_lower = mean - z * std * np.sqrt(1 + 1/n)
         pi_upper = mean + z * std * np.sqrt(1 + 1/n)
-    
+
         fig, ax = plt.subplots(figsize=(7, 4))
         ax.plot(x_values, pdf_values, label="Estimated PDF")
         ax.axvline(mean, color='blue', label='Mean')
@@ -491,15 +489,19 @@ if st.button("Submit"):
         ax.axvline(ci_upper, color='green', linestyle='--')
         ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
         ax.axvline(pi_upper, color='orange', linestyle=':')
-    
+
         ax.set_xlabel("Solve Time (seconds)")
         ax.set_ylabel("Probability Density")
         ax.set_title(f"KDE for {name}")
         ax.legend()
         ax.grid(True)
-    
+
         st.markdown(f"### 📈 Stats for {name}")
         st.write(f"**Mean:** {mean:.2f} seconds")
         st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
         st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
         st.pyplot(fig)
+    display_top_rankings(summary_df)
+    display_advancement_stats(summary_df)
+    display_summary_table(summary_df)
+ 
