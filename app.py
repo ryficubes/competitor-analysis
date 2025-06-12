@@ -61,6 +61,13 @@ elif input_method == "Enter WCA IDs Manually":
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
             st.write(user_list)
 
+# Let user select specific competitors to graph
+selected_competitors = st.multiselect(
+    "📈 Select competitors to view KDE graph and stats:",
+    options=player_names,
+    help="Choose specific competitors to visualize their KDE, mean, confidence intervals, and prediction intervals."
+)
+
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
     mean = np.mean(data)
@@ -457,47 +464,43 @@ if st.button("Submit"):
     display_advancement_stats(summary_df)
     display_summary_table(summary_df)
   # Sample data
-  #for j, data in enumerate(data_list):
-
-     #kde = kde_list[j]
-      #x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-      #pdf_values = kde(x_values)
-
-      # CDF (for future use if needed)
-     # cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
-      #cdf_values /= cdf_values[-1]
-     # cdf_interpolator = interp1d(x_values, cdf_values)
-
-      # Compute statistics
-     # mean = np.mean(data)
-      #std = np.std(data, ddof=1)
-     # n = len(data)
-     # z = stats.norm.ppf(0.975)
-
-    #  ci_lower = mean - z * std / np.sqrt(n)
-     # ci_upper = mean + z * std / np.sqrt(n)
-    #  pi_lower = mean - z * std * np.sqrt(1 + 1/n)
-     # pi_upper = mean + z * std * np.sqrt(1 + 1/n)
-
-      # Plot
-     # fig, ax = plt.subplots(figsize=(7, 4))
-      #ax.plot(x_values, pdf_values, label="Estimated PDF")
-      #ax.axvline(mean, color='blue', label='Mean')
-      #ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
-     # ax.axvline(ci_upper, color='green', linestyle='--')
-      #ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
-      #ax.axvline(pi_upper, color='orange', linestyle=':')
-
-     # ax.set_xlabel("Solve Time (seconds)")
-     # ax.set_ylabel("Probability Density")
-     # ax.set_title(f"KDE for {player_names[j]}")
-     # ax.legend()
-    #  ax.grid(True)
-
-      # Stats as text
-     # st.markdown(f"### 📈 Stats for {player_names[j]}")
-     # st.write(f"**Mean:** {mean:.2f} seconds")
-     # st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
-     # st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
-
-     # st.pyplot(fig)
+  # Display KDE plots only for selected competitors
+    for j, name in enumerate(player_names):
+        if name not in selected_competitors:
+            continue
+    
+        data = data_list[j]
+        kde = kde_list[j]
+    
+        x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
+        pdf_values = kde(x_values)
+    
+        mean = np.mean(data)
+        std = np.std(data, ddof=1)
+        n = len(data)
+        z = stats.norm.ppf(0.975)
+    
+        ci_lower = mean - z * std / np.sqrt(n)
+        ci_upper = mean + z * std / np.sqrt(n)
+        pi_lower = mean - z * std * np.sqrt(1 + 1/n)
+        pi_upper = mean + z * std * np.sqrt(1 + 1/n)
+    
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.plot(x_values, pdf_values, label="Estimated PDF")
+        ax.axvline(mean, color='blue', label='Mean')
+        ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
+        ax.axvline(ci_upper, color='green', linestyle='--')
+        ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
+        ax.axvline(pi_upper, color='orange', linestyle=':')
+    
+        ax.set_xlabel("Solve Time (seconds)")
+        ax.set_ylabel("Probability Density")
+        ax.set_title(f"KDE for {name}")
+        ax.legend()
+        ax.grid(True)
+    
+        st.markdown(f"### 📈 Stats for {name}")
+        st.write(f"**Mean:** {mean:.2f} seconds")
+        st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
+        st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
+        st.pyplot(fig)
