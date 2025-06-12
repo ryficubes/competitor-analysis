@@ -61,13 +61,6 @@ elif input_method == "Enter WCA IDs Manually":
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
             st.write(user_list)
 
-# Let user select specific competitors to graph
-selected_competitors = st.multiselect(
-    "📈 Select competitors to view KDE graph and stats:",
-    options=player_names,
-    help="Choose specific competitors to visualize their KDE, mean, confidence intervals, and prediction intervals."
-)
-
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
     mean = np.mean(data)
@@ -457,7 +450,13 @@ if st.button("Submit"):
 
     st.info(f"🧠 **Processed data for {len(player_names)} competitors**")
     st.info(f"⏲️ **Total runtime: {total_time:.2f} seconds**")
-
+    
+    # Ask user which KDEs to plot
+    selected_competitors = st.multiselect(
+        "📈 Select competitors to view KDE graph and stats:",
+        options=player_names,
+        help="Choose specific competitors to visualize their KDE, mean, confidence intervals, and prediction intervals."
+    )
     # Display
     
     display_top_rankings(summary_df)
