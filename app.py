@@ -115,24 +115,36 @@ def summarize_simulation_results(df):
         'Advanced_R2': 'mean',
         'Final_Placement': 'mean'
     }).reset_index()
-    df_summary['Estimated_Rank'] = (
-        df_summary['Final_Placement'].rank(method="min").fillna(np.nan)
-    )
-    df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
-        lambda x: str(int(x)) if not pd.isna(x) else "Not Ranked"
-    )
+
+    # Handle NaNs gracefully
+    if df_summary['Final_Placement'].isna().all():
+        df_summary['Estimated_Rank'] = np.nan
+        df_summary['Estimated_Rank_Display'] = "Not Ranked"
+    else:
+        df_summary['Estimated_Rank'] = df_summary['Final_Placement'].rank(method="min")
+        df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
+            lambda x: str(int(x)) if not pd.isna(x) else "Not Ranked"
+        )
+
     return df_summary.sort_values('Estimated_Rank', na_position="last")
 
 def display_summary_tables(summary_df):
     st.subheader("📊 Full Summary")
-    st.dataframe(summary_df.style.format(precision=2))
+    st.dataframe(summary_df.astype({"Estimated_Rank_Display": "string"}).style.format(precision=2))
+
     st.subheader("🏆 Final Estimated Rankings")
-    st.table(summary_df[['Competitor', 'Final_Placement', 'Estimated_Rank_Display']].dropna().sort_values('Estimated_Rank').reset_index(drop=True).round(2))
+    if 'Estimated_Rank' in summary_df.columns:
+        summary_df = summary_df.sort_values('Estimated_Rank', na_position="last")
+
+    st.table(summary_df[['Competitor', 'Final_Placement', 'Estimated_Rank_Display']])
+
     st.subheader("🔁 Advancement Probabilities")
-    st.table(summary_df[['Competitor', 'Advanced_R1', 'Advanced_R2']].rename(columns={
+    adv_df = summary_df[['Competitor', 'Advanced_R1', 'Advanced_R2']].rename(columns={
         "Advanced_R1": "Advanced to Round 2",
         "Advanced_R2": "Made Finals"
-    }).sort_values("Made Finals", ascending=False).style.format({
+    })
+    adv_df = adv_df.sort_values("Made Finals", ascending=False)
+    st.table(adv_df.style.format({
         "Advanced to Round 2": "{:.0%}",
         "Made Finals": "{:.0%}"
     }))
