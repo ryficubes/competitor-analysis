@@ -74,58 +74,6 @@ def build_adaptive_kde(data):
     scaled_bw = base_bw + 0.3 * cv  # adapt bandwidth to variability
     return gaussian_kde(data, bw_method=scaled_bw)
 
-def build_percentile_sampler(data, kde):
-    x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-    pdf_values = kde(x_values)
-    cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
-    cdf_values /= cdf_values[-1]
-    cdf_interpolator = interp1d(cdf_values, x_values, bounds_error=False, fill_value=(x_values[0], x_values[-1]))
-    return lambda percentile: float(cdf_interpolator(percentile / 100))
-
-# --- Fast Ao5 with Behavioral Variability ---
-def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
-    percentiles = np.random.rand(5) * 100
-    samples = []
-    for p in percentiles:
-        if np.random.rand() < heavy_tail_chance:
-            val = np.random.uniform(10, 16)  # rare bad solve
-        else:
-            val = sampler(p) + np.random.normal(0, base_noise)
-        samples.append(val)
-    samples = sorted(samples)
-    return round(np.mean(samples[1:4]), 2)
-
-# --- Main Simulation ---
-def simulate_rounds_behavioral(data_list, player_names, num_simulations=1000, r1_cutoff=60, r2_cutoff=20):
-    kde_list = [build_adaptive_kde(data) for data in data_list]
-    samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
-
-    all_results = []
-    for sim_id in range(num_simulations):
-        r1_ao5 = [fast_simtournament(s) for s in samplers]
-        r1_sorted = np.argsort(r1_ao5)
-        r2_indices = r1_sorted[:min(r1_cutoff, len(r1_ao5))]
-        r2_ao5 = [fast_simtournament(samplers[i]) for i in r2_indices]
-        r2_sorted = np.argsort(r2_ao5)
-        final_indices = [r2_indices[i] for i in r2_sorted[:min(r2_cutoff, len(r2_ao5))]]
-        final_ao5 = [fast_simtournament(samplers[i]) for i in final_indices]
-
-        final_rankings = {player_names[i]: rank+1 for rank, (i, _) in enumerate(sorted(zip(final_indices, final_ao5), key=lambda x: x[1]))}
-
-        for i, name in enumerate(player_names):
-            all_results.append({
-                "Simulation_ID": sim_id + 1,
-                "Competitor": name,
-                "Ao5_Round1": r1_ao5[i] if i in r1_sorted else np.nan,
-                "Ao5_Round2": r2_ao5[r2_indices.tolist().index(i)] if i in r2_indices else np.nan,
-                "Ao5_Final": final_ao5[final_indices.index(i)] if i in final_indices else np.nan,
-                "Advanced_R1": i in r2_indices,
-                "Advanced_R2": i in final_indices,
-                "Final_Placement": final_rankings.get(name, np.nan)
-            })
-
-    return pd.DataFrame(all_results)
-
 # --- Summary and Display ---
 def summarize_simulation_results(df):
     # Group without dropping NaNs
