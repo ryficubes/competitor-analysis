@@ -362,8 +362,13 @@ simulations = st.slider("How many simulations would you like to include?", 10, 5
 
 include_cstimer = st.checkbox("Include csTimer times?")
 cstimer_file = None
+
 if include_cstimer:
     cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
+    num_cstimer_solves = st.slider(
+        "Number of most recent csTimer solves to include",
+        min_value=50, max_value=1000, value=200, step=25
+    )
 
 if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
