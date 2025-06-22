@@ -224,7 +224,7 @@ def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cuto
 
     return pd.DataFrame(all_results)
 
-def get_cstimer_times(file, event):
+def get_cstimer_times(file, event, num_solves=25):
     data = file.read().decode("utf-8").strip()
     dictionary = json.loads(data)
     session_data = json.loads(dictionary['properties']['sessionData'].strip())
@@ -241,8 +241,16 @@ def get_cstimer_times(file, event):
         st.error(f"❌ No session matching event '{event}' found in csTimer file.")
         return []
 
-    times_list = [dictionary[session_name][i][0][1] / 1000 for i in range(1, len(dictionary[session_name]))]
-    return times_list
+    times_raw = [
+        dictionary[session_name][i][0][1] / 1000
+        for i in range(1, len(dictionary[session_name]))
+    ]
+    
+    # Show the actual times for debugging
+    trimmed_times = times_raw[-num_solves:]
+    st.write(f"📋 **csTimer Times Used ({len(trimmed_times)}):** {trimmed_times}")
+
+    return trimmed_times
 
 def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_solves=10, ):
     data_list = []
