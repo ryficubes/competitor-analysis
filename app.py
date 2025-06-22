@@ -26,6 +26,9 @@ import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
 st.write("Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
+
+st.image("https://i.imgur.com/OYvs0v0.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
+
 # Let user choose input method
 st.markdown("### Choose how you want to input competitor data")
 input_method = st.radio("Select input method:", ["Upload HTML File", "Enter WCA IDs Manually"])
