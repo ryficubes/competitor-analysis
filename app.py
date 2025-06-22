@@ -151,6 +151,30 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
     return data_list, kde_list, valid_names
 
+def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cutoff=60, r2_cutoff=20):
+    kde_list = [build_adaptive_kde(data) for data in data_list]
+    samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
+
+    all_results = []
+    for _ in range(num_simulations):
+        # Round 1
+        r1_ao5 = [fast_simtournament(s) for s in samplers]
+        r1_sorted = np.argsort(r1_ao5)
+        r2_indices = r1_sorted[:min(r1_cutoff, len(r1_ao5))]
+
+        # Round 2
+        r2_ao5 = [fast_simtournament(samplers[i]) for i in r2_indices]
+        r2_sorted = np.argsort(r2_ao5)
+        final_indices = [r2_indices[i] for i in r2_sorted[:min(r2_cutoff, len(r2_ao5))]]
+
+        # Finals
+        final_ao5 = [fast_simtournament(samplers[i]) for i in final_indices]
+        final_sorted = np.argsort(final_ao5)
+        rankings = [final_indices[i] for i in final_sorted]
+
+        all_results.append(rankings)
+
+    return all_results
 
 # ---------------- csTimer Integration ----------------
 def get_cstimer_times(file, event):
