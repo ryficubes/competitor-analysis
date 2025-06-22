@@ -1,37 +1,46 @@
 import warnings
 import time
+warnings.filterwarnings("ignore")
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
+import random as randomx
 from scipy.stats import gaussian_kde
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import json
 import requests, zipfile, io
+import numpy as np
+import pandas as pd
+from scipy.stats import gaussian_kde
+from scipy.integrate import cumulative_trapezoid
+from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
+import seaborn as sns
 import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
+import pandas as pd
 
-warnings.filterwarnings("ignore")
-
-# ---------------- Streamlit Header ----------------
 st.title("Rubik's Cube Competitor Analysis")
-st.write("""
-Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance.
-This project builds a weighted estimated rank based on recent solves instead of lifetime best solves.
-""")
+st.write("Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
+
 st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
-# ---------------- Input Method ----------------
+# Let user choose input method
 st.markdown("### Choose how you want to input competitor data")
-st.write("Upload a WCA registration HTML file or enter WCA IDs manually.")
+st.write("If you would like to simulate a future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
 input_method = st.radio("Select input method:", ["Upload HTML File", "Enter WCA IDs Manually"])
 
 user_list = []
+
 if input_method == "Upload HTML File":
     uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
+    #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
+    #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
+
     if uploaded_file:
         soup = BeautifulSoup(uploaded_file, "html.parser")
         links = soup.find_all("a", href=True)
@@ -40,12 +49,14 @@ if input_method == "Upload HTML File":
             for link in links
             if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
         })
+
         if user_list:
             df = pd.DataFrame(user_list, columns=["WCA ID"])
             st.success(f"✅ Extracted {len(user_list)} WCA IDs")
             st.dataframe(df)
         else:
             st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
+
 elif input_method == "Enter WCA IDs Manually":
     user_input = st.text_area("Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)")
     if user_input:
@@ -54,7 +65,7 @@ elif input_method == "Enter WCA IDs Manually":
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
             st.write(user_list)
 
-# ---------------- KDE Helper Functions ----------------
+# --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
     mean = np.mean(data)
     std = np.std(data)
@@ -64,24 +75,69 @@ def describe_solver(data):
 def build_adaptive_kde(data):
     mean, std, cv = describe_solver(data)
     base_bw = 0.2
-    scaled_bw = base_bw + 0.3 * cv
+    scaled_bw = base_bw + 0.3 * cv  # adapt bandwidth to variability
     return gaussian_kde(data, bw_method=scaled_bw)
 
-def build_percentile_sampler(data, kde):
-    x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-    pdf_values = kde(x_values)
-    cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
-    cdf_values /= cdf_values[-1]
-    cdf_interpolator = interp1d(cdf_values, x_values, bounds_error=False, fill_value=(x_values[0], x_values[-1]))
-    return lambda percentile: float(cdf_interpolator(percentile / 100))
+# --- Summary and Display ---
+def summarize_simulation_results(df):
+    # Group without dropping NaNs
+    df_summary = df.groupby('Competitor').agg({
+        'Ao5_Round1': 'mean',
+        'Ao5_Round2': 'mean',
+        'Ao5_Final': 'mean',
+        'Advanced_R1': 'mean',
+        'Advanced_R2': 'mean',
+        'Final_Placement': 'mean'
+    }).reset_index()
 
-def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
-    percentiles = np.random.rand(5) * 100
-    heavy_mask = np.random.rand(5) < heavy_tail_chance
-    base_samples = np.array([sampler(p) for p in percentiles])
-    noise = np.random.normal(0, base_noise, 5)
-    values = np.where(heavy_mask, np.random.uniform(10, 16, 5), base_samples + noise)
-    return round(np.mean(np.sort(values)[1:4]), 2)
+    # Assign rank only to those with valid placements
+    df_summary['Estimated_Rank'] = (
+        df_summary['Final_Placement']
+        .rank(method="min")
+        .fillna(np.nan)
+    )
+
+    # Format nicely: replace NaNs with a label
+    df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
+        lambda x: int(x) if not pd.isna(x) else "Not Ranked"
+    )
+
+    return df_summary.sort_values(
+        'Estimated_Rank', na_position="last"
+    )
+
+    # 💥 Protect against NaNs in Final_Placement before converting to int
+    df_summary = df_summary.dropna(subset=['Final_Placement'])
+
+    df_summary['Estimated_Rank'] = df_summary['Final_Placement'].rank(method="min").astype(int)
+
+    return df_summary.sort_values('Estimated_Rank')
+
+def display_summary_table(summary_df):
+    st.subheader("📊 Full Summary")
+    st.dataframe(summary_df.style.format(precision=2))
+
+def display_top_rankings(summary_df):
+    st.subheader("🏆 Final Estimated Rankings")
+    ranked_df = summary_df.dropna(subset=['Estimated_Rank'])  # removes "Not Ranked"
+    ranked_df = ranked_df.sort_values('Estimated_Rank')
+    display_cols = ['Competitor', 'Final_Placement', 'Estimated_Rank_Display']
+    st.table(ranked_df[display_cols].reset_index(drop=True).round(2))
+
+def display_advancement_stats(summary_df):
+    adv_df = summary_df[['Competitor', 'Advanced_R1', 'Advanced_R2']].copy()
+    adv_df = adv_df.rename(columns={
+        "Advanced_R1": "Advanced to Round 2",
+        "Advanced_R2": "Made Finals"
+    })
+
+    adv_df = adv_df.sort_values("Made Finals", ascending=False)
+
+    st.subheader("🔁 Advancement Probabilities (R1 → R2 → Final)")
+    st.table(adv_df.reset_index(drop=True).style.format({
+        "Advanced to Round 2": "{:.0%}",
+        "Made Finals": "{:.0%}"
+    }))
 
 def get_recent_times_and_name(player_id, cube_category, times_amount, all_lines):
     pulled_lines = []
@@ -115,68 +171,59 @@ def get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
     return [x / 100 for x in int_list], name
 
 
-def build_data_and_kde_with_progress(group_list, cube_category, times_amount, all_lines, min_solves=10):
-    data_list = []
-    kde_list = []
-    valid_names = []
+def build_adaptive_kde(data):
+    mean, std, cv = describe_solver(data)
+    base_bw = 0.2
+    scaled_bw = base_bw + 0.3 * cv  # adapt bandwidth to variability
+    return gaussian_kde(data, bw_method=scaled_bw)
 
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    timer_text = st.empty()
-    start_time = time.time()
+def build_percentile_sampler(data, kde):
+    x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
+    pdf_values = kde(x_values)
+    cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
+    cdf_values /= cdf_values[-1]
+    cdf_interpolator = interp1d(cdf_values, x_values, bounds_error=False, fill_value=(x_values[0], x_values[-1]))
+    return lambda percentile: float(cdf_interpolator(percentile / 100))
 
-    total = len(group_list)
+# --- Fast Ao5 with Behavioral Variability ---
+def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
+    percentiles = np.random.rand(5) * 100
+    heavy_mask = np.random.rand(5) < heavy_tail_chance
+    base_samples = np.array([sampler(p) for p in percentiles])
+    noise = np.random.normal(0, base_noise, 5)
+    values = np.where(heavy_mask, np.random.uniform(10, 16, 5), base_samples + noise)
+    return round(np.mean(np.sort(values)[1:4]), 2)
 
-    for i, player_id in enumerate(group_list):
-        elapsed = time.time() - start_time
-        timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
-        status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
-
-        data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
-
-        if data is None or len(data) < min_solves:
-            st.warning(f"⚠️ Skipping {name or player_id} – not enough valid solves")
-            continue
-
-        kde = gaussian_kde(data, bw_method=0.2)
-        data_list.append(data)
-        kde_list.append(kde)
-        valid_names.append(f"{name} ({player_id})")
-
-        progress_bar.progress((i + 1) / total)
-
-    status_text.markdown(f"✅ Done! Processed **{len(valid_names)} competitors**.")
-    elapsed = time.time() - start_time
-    timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
-
-    return data_list, kde_list, valid_names
-
+# --- Main Simulation ---
 def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cutoff=60, r2_cutoff=20):
     kde_list = [build_adaptive_kde(data) for data in data_list]
     samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
 
     all_results = []
     for _ in range(num_simulations):
-        # Round 1
         r1_ao5 = [fast_simtournament(s) for s in samplers]
         r1_sorted = np.argsort(r1_ao5)
         r2_indices = r1_sorted[:min(r1_cutoff, len(r1_ao5))]
-
-        # Round 2
         r2_ao5 = [fast_simtournament(samplers[i]) for i in r2_indices]
         r2_sorted = np.argsort(r2_ao5)
         final_indices = [r2_indices[i] for i in r2_sorted[:min(r2_cutoff, len(r2_ao5))]]
-
-        # Finals
         final_ao5 = [fast_simtournament(samplers[i]) for i in final_indices]
-        final_sorted = np.argsort(final_ao5)
-        rankings = [final_indices[i] for i in final_sorted]
 
-        all_results.append(rankings)
+        final_rankings = {player_names[i]: rank+1 for rank, (i, _) in enumerate(sorted(zip(final_indices, final_ao5), key=lambda x: x[1]))}
 
-    return all_results
+        for i, name in enumerate(player_names):
+            all_results.append({
+                "Competitor": name,
+                "Ao5_Round1": r1_ao5[i] if i in r1_sorted else np.nan,
+                "Ao5_Round2": r2_ao5[r2_indices.tolist().index(i)] if i in r2_indices else np.nan,
+                "Ao5_Final": final_ao5[final_indices.index(i)] if i in final_indices else np.nan,
+                "Advanced_R1": i in r2_indices,
+                "Advanced_R2": i in final_indices,
+                "Final_Placement": final_rankings.get(name, np.nan)
+            })
 
-# ---------------- csTimer Integration ----------------
+    return pd.DataFrame(all_results)
+
 def get_cstimer_times(file, event):
     data = file.read().decode("utf-8").strip()
     dictionary = json.loads(data)
@@ -196,6 +243,61 @@ def get_cstimer_times(file, event):
 
     times_list = [dictionary[session_name][i][0][1] / 1000 for i in range(1, len(dictionary[session_name]))]
     return times_list
+
+def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_solves=10, ):
+    data_list = []
+    kde_list = []
+    valid_names = []
+
+    for player_id in group_list:
+        data = get_recent_times(player_id, cube_category, times_amount, all_lines)
+        if data is None:
+            st.warning(f"⚠️ Skipping {player_id} due to missing/short data")
+            continue
+
+        kde = gaussian_kde(data, bw_method=0.2)
+        data_list.append(data)
+        kde_list.append(kde)
+        valid_names.append(player_id)
+
+    return data_list, kde_list, valid_names
+
+def build_data_and_kde_with_progress(group_list, cube_category, times_amount, all_lines, min_solves=10):
+    data_list = []
+    kde_list = []
+    valid_names = []
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    timer_text = st.empty()
+    start_time = time.time()
+
+    total = len(group_list)
+
+    for i, player_id in enumerate(group_list):
+        elapsed = time.time() - start_time
+        timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
+        status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
+
+        data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
+
+        # Skip if not enough valid times
+        if data is None or len(data) < 2:
+            st.warning(f"⚠️ Skipping {name or player_id} – not enough valid solves")
+            continue
+
+        kde = gaussian_kde(data, bw_method=0.2)
+        data_list.append(data)
+        kde_list.append(kde)
+        valid_names.append(f"{name} ({player_id})")
+
+        progress_bar.progress((i + 1) / total)
+
+    status_text.markdown(f"✅ Done! Processed **{len(valid_names)} competitors**.")
+    elapsed = time.time() - start_time
+    timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
+
+    return data_list, kde_list, valid_names
 
 
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
@@ -245,10 +347,10 @@ elif option =='5x5 Blindfolded':
 #if st.button("Add User"):
   #st.write(user_list)
 
-times = st.slider("How many solves (competitor's most recent solves) would you like to include in the model?", 5, 200, 25, step = 5)
+times = st.slider("How many solves (competitor's most recent solves) would you like to include in the model?", 5, 200, 5, step = 5)
 new_times = (times / 5) * -1
 times_amount = int(new_times)
-simulations = st.slider("How many simulations would you like to include?", 10, 500, 250)
+simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
 include_cstimer = st.checkbox("Include csTimer times?")
 cstimer_file = None
