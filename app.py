@@ -83,6 +83,75 @@ def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
     values = np.where(heavy_mask, np.random.uniform(10, 16, 5), base_samples + noise)
     return round(np.mean(np.sort(values)[1:4]), 2)
 
+def get_recent_times_and_name(player_id, cube_category, times_amount, all_lines):
+    pulled_lines = []
+    for line in all_lines:
+        if player_id in line:
+            parts = line.split(',')
+            if len(parts) > 2 and parts[1].strip().strip("'") == cube_category.strip().strip("'"):
+                pulled_lines.append(line)
+
+    if not pulled_lines:
+        return None, None
+
+    most_recent = pulled_lines[times_amount:]
+    times = []
+    name = None
+    for entry in most_recent:
+        parts = entry.split(',')
+        times += parts[10:15]
+        if not name:
+            name = parts[6].strip().strip("'")
+
+    try:
+        int_list = np.asarray([int(x) for x in times if x.strip().isdigit()])
+    except ValueError:
+        return None, name
+
+    int_list = int_list[int_list > 0]
+    if len(int_list) == 0:
+        return None, name
+
+    return [x / 100 for x in int_list], name
+
+
+def build_data_and_kde_with_progress(group_list, cube_category, times_amount, all_lines, min_solves=10):
+    data_list = []
+    kde_list = []
+    valid_names = []
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    timer_text = st.empty()
+    start_time = time.time()
+
+    total = len(group_list)
+
+    for i, player_id in enumerate(group_list):
+        elapsed = time.time() - start_time
+        timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
+        status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
+
+        data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
+
+        if data is None or len(data) < min_solves:
+            st.warning(f"⚠️ Skipping {name or player_id} – not enough valid solves")
+            continue
+
+        kde = gaussian_kde(data, bw_method=0.2)
+        data_list.append(data)
+        kde_list.append(kde)
+        valid_names.append(f"{name} ({player_id})")
+
+        progress_bar.progress((i + 1) / total)
+
+    status_text.markdown(f"✅ Done! Processed **{len(valid_names)} competitors**.")
+    elapsed = time.time() - start_time
+    timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
+
+    return data_list, kde_list, valid_names
+
+
 # ---------------- csTimer Integration ----------------
 def get_cstimer_times(file, event):
     data = file.read().decode("utf-8").strip()
