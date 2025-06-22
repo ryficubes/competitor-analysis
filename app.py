@@ -221,10 +221,10 @@ elif option =='5x5 Blindfolded':
 #if st.button("Add User"):
   #st.write(user_list)
 
-times = st.slider("How many solves (competitor's most recent solves) would you like to include in the model?", 5, 200, 5, step = 5)
+times = st.slider("How many solves (competitor's most recent solves) would you like to include in the model?", 5, 200, 25, step = 5)
 new_times = (times / 5) * -1
 times_amount = int(new_times)
-simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
+simulations = st.slider("How many simulations would you like to include?", 10, 500, 250)
 
 include_cstimer = st.checkbox("Include csTimer times?")
 cstimer_file = None
