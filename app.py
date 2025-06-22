@@ -242,13 +242,14 @@ def get_cstimer_times(file, event):
       j+=1
   print(session_name)
 
+  if 'session_name' not in locals():
+    st.error(f"❌ No session matching event '{event}' found in csTimer file.")
+    return []
+      
   times_list = []
   for i in range(1,len(dictionary[session_name])):
     times_list.append(dictionary[session_name][i][0][1] / 1000)
 
-  if 'session_name' not in locals():
-    st.error(f"❌ No session matching event '{option}' found in csTimer file.")
-    return []
   return times_list
 
 def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_solves=10, ):
@@ -360,16 +361,9 @@ times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 50)
 
 include_cstimer = st.checkbox("Include csTimer times?")
-
+cstimer_file = None
 if include_cstimer:
     cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
-    if cstimer_file is not None:
-        grabbed_times = get_cstimer_times(cstimer_file, option)
-        if grabbed_times:
-            data_list.append(grabbed_times)
-            kde_list.append(build_adaptive_kde(grabbed_times))
-            player_names.append("csTimer User")
-            st.success("✅ csTimer times loaded and added to simulation")
 
 if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
@@ -397,6 +391,16 @@ if st.button("Submit"):
     else:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
 
+    if include_cstimer and cstimer_file is not None:
+        grabbed_times = get_cstimer_times(cstimer_file, option)
+        if grabbed_times:
+            data_list.append(grabbed_times)
+            kde_list.append(build_adaptive_kde(grabbed_times))
+            player_names.append("csTimer User")
+            st.success("✅ csTimer times loaded and added to simulation")
+        else:
+            st.warning("⚠️ Could not extract valid csTimer times for this event.")
+            
     st.success("✅ Finished Getting KDE + Solves")
     df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
     summary_df = summarize_simulation_results(df_simulated)
