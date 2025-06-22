@@ -397,7 +397,7 @@ if st.button("Submit"):
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
 
     if include_cstimer and cstimer_file is not None:
-        grabbed_times = get_cstimer_times(cstimer_file, option)
+        grabbed_times = get_cstimer_times(cstimer_file, option, num_cstimer_solves)
         if grabbed_times:
             data_list.append(grabbed_times)
             kde_list.append(build_adaptive_kde(grabbed_times))
