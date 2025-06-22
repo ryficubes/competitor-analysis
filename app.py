@@ -361,9 +361,12 @@ include_cstimer = st.checkbox("Include csTimer times?")
 if include_cstimer:
     cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
     if cstimer_file is not None:
-        if st.button("Submit csTimer Times"):
-            grabbed_times = get_cstimer_times(cstimer_file, option)
-            st.success("csTimer times loaded!")
+        grabbed_times = get_cstimer_times(cstimer_file, option)
+        if grabbed_times:
+            data_list.append(grabbed_times)
+            kde_list.append(build_adaptive_kde(grabbed_times))
+            player_names.append("csTimer User")
+            st.success("✅ csTimer times loaded and added to simulation")
 
 if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
