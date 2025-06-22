@@ -38,7 +38,7 @@ if input_method == "Upload HTML File":
         user_list = sorted({
             match.group(1)
             for link in links
-            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"))
+            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
         })
         if user_list:
             df = pd.DataFrame(user_list, columns=["WCA ID"])
