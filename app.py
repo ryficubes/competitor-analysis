@@ -31,6 +31,7 @@ st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
 # Let user choose input method
 st.markdown("### Choose how you want to input competitor data")
+st.write("If you would like to simulate a future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
 input_method = st.radio("Select input method:", ["Upload HTML File", "Enter WCA IDs Manually"])
 
 user_list = []
