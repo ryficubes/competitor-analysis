@@ -246,6 +246,9 @@ def get_cstimer_times(file, event):
   for i in range(1,len(dictionary[session_name])):
     times_list.append(dictionary[session_name][i][0][1] / 1000)
 
+  if 'session_name' not in locals():
+    st.error(f"❌ No session matching event '{option}' found in csTimer file.")
+    return []
   return times_list
 
 def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_solves=10, ):
