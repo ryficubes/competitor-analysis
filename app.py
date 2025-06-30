@@ -37,7 +37,7 @@ input_method = st.radio("Choose one:", ["If you would like to simulate a future 
 user_list = []
 
 if input_method == "If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.":
-    st.write("Step 2:")
+    st.markdown("### Step 2:")
     uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
