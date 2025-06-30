@@ -59,6 +59,7 @@ if input_method == "If you would like to simulate a future WCA competition, sele
             st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
 elif input_method == "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.":
+    st.markdown("### Step 2:")
     user_input = st.text_area("Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)")
     if user_input:
         user_list = [id.strip() for id in user_input.split(",") if id.strip()]
