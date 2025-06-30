@@ -368,6 +368,7 @@ times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 250)
 
 #include_cstimer = st.checkbox("Include csTimer times?")
+include_cstimer = False
 cstimer_file = None
 
 if include_cstimer:
