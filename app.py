@@ -25,6 +25,7 @@ import re
 import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
+st.markdown("This is not affiliated with the wCA; this is an independent project.")
 st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
 #st.write("### Simulate a future competition: You pick the competitors, you against you and those who have signed up, create your own field")
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
@@ -130,9 +131,8 @@ def display_top_rankings(summary_df):
     st.table(ranked_df[display_cols].reset_index(drop=True).round(2))
 
 def display_advancement_stats(summary_df):
-    adv_df = summary_df[['Competitor', 'Advanced_R1', 'Advanced_R2']].copy()
+    adv_df = summary_df[['Competitor','Advanced_R2']].copy()
     adv_df = adv_df.rename(columns={
-        "Advanced_R1": "Advanced to Round 2",
         "Advanced_R2": "Made Finals"
     })
 
@@ -430,8 +430,8 @@ if st.button("Submit"):
     # Display
 
     display_top_rankings(summary_df)
-    display_advancement_stats(summary_df)
-    display_summary_table(summary_df)
+    #display_advancement_stats(summary_df)
+    #display_summary_table(summary_df)
   # Sample data
     for j, data in enumerate(data_list):
 
