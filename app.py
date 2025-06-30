@@ -30,9 +30,9 @@ st.write("Similar to sports statisticians, I am working hard to make metrics tha
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
 # Let user choose input method
-#st.markdown("### Choose what type of competition you would like to simulate?")
+st.markdown("### Step 1: Choose what type of competition you would like to simulate?")
 #st.write("If you would like to simulate a real future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
-input_method = st.radio("### Step 1: Choose what type of competition you would like to simulate?", ["If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.", "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually."])
+input_method = st.radio("Choose one:", ["If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.", "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually."])
 
 user_list = []
 
