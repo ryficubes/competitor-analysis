@@ -367,8 +367,8 @@ new_times = (times / 5) * -1
 times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 250)
 
-#include_cstimer = st.checkbox("Include csTimer times?")
-include_cstimer = False
+st.markdown("### Step 5: Do you want to use your csTimer data as one of the competitors?")
+include_cstimer = st.checkbox("Include csTimer times?")
 cstimer_file = None
 
 if include_cstimer:
