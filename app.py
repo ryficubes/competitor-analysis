@@ -30,13 +30,13 @@ st.write("### Simulate a future competition: You pick the competitors, you again
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
 # Let user choose input method
-st.markdown("### Choose what type of competition you would like to simulate?")
+#st.markdown("### Choose what type of competition you would like to simulate?")
 #st.write("If you would like to simulate a real future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
-input_method = st.radio("", ["If you would like to simulate a future WCA competition, click here to upload an HTML file of the competition.", "If you would like to simulate a competition among specific competitors that you choose, enter their WCA IDs manually."])
+input_method = st.radio("### Choose what type of competition you would like to simulate?", ["If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.", "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually."])
 
 user_list = []
 
-if input_method == "Upload HTML File":
+if input_method == "If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.":
     uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
@@ -57,7 +57,7 @@ if input_method == "Upload HTML File":
         else:
             st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
-elif input_method == "Enter WCA IDs Manually":
+elif input_method == "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.":
     user_input = st.text_area("Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)")
     if user_input:
         user_list = [id.strip() for id in user_input.split(",") if id.strip()]
