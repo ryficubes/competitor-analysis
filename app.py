@@ -40,7 +40,7 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     st.markdown("### Step 2: Load the Data")
     st.write("Go to the World Cube Association website (www.worldcubeassociation.org) and choose a competition under “Competitions” tab.")
     st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
-    st.write("Then, press CTRL + S to save the HTML file and press Enter. Go back to the Streamlit website to upload the file. The WCA IDs should be pulled.")
+    st.write("Press CTRL + S to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the file (not the folder). It should have extracted the WCA IDs.")
     uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
@@ -312,7 +312,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
     return data_list, kde_list, valid_names
 
-
+st.markdown("### Step 3: Pick your Event")
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
 new_option = ''
 if option == "2x2":
@@ -360,12 +360,14 @@ elif option =='5x5 Blindfolded':
 #if st.button("Add User"):
   #st.write(user_list)
 
+st.markdown("### Step 4: Choose your Parameters")
+
 times = st.slider("How many solves (competitor's most recent solves) would you like to include in the model?", 5, 200, 25, step = 5)
 new_times = (times / 5) * -1
 times_amount = int(new_times)
 simulations = st.slider("How many simulations would you like to include?", 10, 500, 250)
 
-include_cstimer = st.checkbox("Include csTimer times?")
+#include_cstimer = st.checkbox("Include csTimer times?")
 cstimer_file = None
 
 if include_cstimer:
