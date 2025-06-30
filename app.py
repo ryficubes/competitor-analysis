@@ -25,14 +25,14 @@ import re
 import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
-st.write("Similar to sports statisticians, we are working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
-
+st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
+st.write("### Simulate a future competition: You pick the competitors, you against you and those who have signed up, create your own field")
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
 # Let user choose input method
 st.markdown("### Choose how you want to input competitor data")
 st.write("If you would like to simulate a future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
-input_method = st.radio("Select input method:", ["Upload HTML File", "Enter WCA IDs Manually"])
+input_method = st.radio("Select input method:", ["If you would like to simulate a future competition, follow the instructions above and upload an HTML file.", "If you would like to simulate a competition among certain competitors, enter their WCA IDs manually."])
 
 user_list = []
 
