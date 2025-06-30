@@ -86,38 +86,32 @@ def build_adaptive_kde(data):
 
 # --- Summary and Display ---
 def summarize_simulation_results(df):
-    # Group without dropping NaNs
+    # Group and compute mean values for each round
     df_summary = df.groupby('Competitor').agg({
         'Ao5_Round1': 'mean',
         'Ao5_Round2': 'mean',
         'Ao5_Final': 'mean',
         'Advanced_R1': 'mean',
         'Advanced_R2': 'mean',
-        'Final_Placement': 'mean'
+        'Final_Placement': lambda x: np.nanmean(x)
     }).reset_index()
 
-    # Assign rank only to those with valid placements
-    df_summary['Estimated_Rank'] = (
-        df_summary['Final_Placement']
-        .rank(method="min")
-        .fillna(np.nan)
+    # Create a fallback column for ranking: Final > Round2 > Round1
+    df_summary['Estimated_Performance'] = (
+        df_summary['Ao5_Final']
+        .fillna(df_summary['Ao5_Round2'])
+        .fillna(df_summary['Ao5_Round1'])
     )
 
-    # Format nicely: replace NaNs with a label
+    # Assign rank based on best available performance
+    df_summary['Estimated_Rank'] = df_summary['Estimated_Performance'].rank(method="min")
+
+    # Clean display format
     df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
         lambda x: int(x) if not pd.isna(x) else "Not Ranked"
     )
 
-    return df_summary.sort_values(
-        'Estimated_Rank', na_position="last"
-    )
-
-    # 💥 Protect against NaNs in Final_Placement before converting to int
-    df_summary = df_summary.dropna(subset=['Final_Placement'])
-
-    df_summary['Estimated_Rank'] = df_summary['Final_Placement'].rank(method="min").astype(int)
-
-    return df_summary.sort_values('Estimated_Rank')
+    return df_summary.sort_values('Estimated_Rank', na_position="last")
 
 def display_summary_table(summary_df):
     st.subheader("📊 Full Summary")
@@ -430,7 +424,7 @@ if st.button("Submit"):
     # Display
 
     display_top_rankings(summary_df)
-    #display_advancement_stats(summary_df)
+    display_advancement_stats(summary_df)
     #display_summary_table(summary_df)
   # Sample data
     for j, data in enumerate(data_list):
