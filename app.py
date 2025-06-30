@@ -25,7 +25,7 @@ import re
 import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
-st.markdown("This is not affiliated with the wCA; this is an independent project.")
+st.markdown("This is an independent project and not affiliated with the WCA in any way.")
 st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
 #st.write("### Simulate a future competition: You pick the competitors, you against you and those who have signed up, create your own field")
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
@@ -121,7 +121,7 @@ def display_top_rankings(summary_df):
     st.subheader("🏆 Final Estimated Rankings")
     ranked_df = summary_df.dropna(subset=['Estimated_Rank'])  # removes "Not Ranked"
     ranked_df = ranked_df.sort_values('Estimated_Rank')
-    display_cols = ['Competitor', 'Final_Placement', 'Estimated_Rank_Display']
+    display_cols = ['Competitor', 'Estimated_Rank_Display']
     st.table(ranked_df[display_cols].reset_index(drop=True).round(2))
 
 def display_advancement_stats(summary_df):
@@ -467,7 +467,7 @@ if st.button("Submit"):
       # Stats as text
       st.markdown(f"### 📈 Stats for {player_names[j]}")
       st.write(f"**Mean:** {mean:.2f} seconds")
-      st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
-      st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
+      st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f}) = A competitor's next average of 5 (Ao5) will fall in this range")
+      st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f}) = A competitor's next single solve will fall in this range")
 
       st.pyplot(fig)
