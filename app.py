@@ -30,9 +30,9 @@ st.write("### Simulate a future competition: You pick the competitors, you again
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
 # Let user choose input method
-st.markdown("### Choose how you want to input competitor data")
-st.write("If you would like to simulate a future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
-input_method = st.radio("Select input method:", ["If you would like to simulate a future competition, follow the instructions above and upload an HTML file.", "If you would like to simulate a competition among certain competitors, enter their WCA IDs manually."])
+st.markdown("### Choose what type of competition you would like to simulate?")
+#st.write("If you would like to simulate a real future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
+input_method = st.radio("", ["If you would like to simulate a future WCA competition, click here to upload an HTML file of the competition.", "If you would like to simulate a competition among specific competitors that you choose, enter their WCA IDs manually."])
 
 user_list = []
 
