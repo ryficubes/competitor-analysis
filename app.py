@@ -377,22 +377,25 @@ if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
     st.write("⏳ Loading...")
 
-    # Step 1: Get latest export info
-    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
-    sql_url = r["sql_url"]
-
-    # Step 2: Download and unzip — with ZIP validation
-    response = requests.get(sql_url)
+    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public")
     
-    if response.status_code == 200 and response.content[:4] == b'PK\x03\x04':
-        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-            for name in z.namelist():
-                if name.endswith(".sql"):
-                    z.extract(name, ".")
+    if r.status_code == 200:
+        try:
+            json_data = r.json()
+            sql_url = json_data.get("sql_url")
+            if not sql_url:
+                st.error("❌ Couldn't find a valid SQL URL in the WCA API response.")
+                st.stop()
+        except Exception as e:
+            st.error("❌ Failed to parse WCA API response as JSON.")
+            st.text(str(e))
+            st.stop()
     else:
-        st.error("❌ The downloaded file is not a valid ZIP archive.")
-        st.text(f"Response code: {response.status_code}")
-        st.text(f"First few bytes: {response.content[:100]}")
+        st.error("❌ Failed to fetch WCA export info from API.")
+        st.text(f"Status Code: {r.status_code}")
+        st.text(f"Response Preview: {r.text[:100]}")
+        st.stop()
+
 
 
     # Step 3: Read SQL content
