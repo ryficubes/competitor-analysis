@@ -69,7 +69,7 @@ elif input_method == "If you would like to simulate a competition among specific
         user_list = [id.strip() for id in user_input.split(",") if id.strip()]
         if user_list:
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
-            st.write(user_list)
+            #st.write(user_list)
 
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
@@ -395,12 +395,12 @@ if st.button("Submit"):
         st.text(f"Status Code: {r.status_code}")
         st.text(f"Response Preview: {r.text[:100]}")
         st.stop()
-
-
-
+    
     # Step 3: Read SQL content 
-    with open('WCA_export.sql', 'r') as file:
-        all_lines = file.readlines()
+    z = zipfile.ZipFile(io.BytesIO(requests.get(sql_url).content))
+    sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
+    with z.open(sql_filename) as file:
+        all_lines = [line.decode("utf-8") for line in file.readlines()]
 
     st.success("✅ Data Loaded!")
 
