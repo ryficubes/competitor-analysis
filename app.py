@@ -424,7 +424,7 @@ if st.button("Submit"):
     # Display
 
     display_top_rankings(summary_df)
-    display_advancement_stats(summary_df)
+    #display_advancement_stats(summary_df)
     #display_summary_table(summary_df)
   # Sample data
     for j, data in enumerate(data_list):
