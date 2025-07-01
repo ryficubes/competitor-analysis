@@ -467,9 +467,9 @@ if st.button("Submit"):
       # Stats as text
       st.markdown(f"### 📈 Stats for {player_names[j]}")
       st.write(f"**Mean:** {mean:.2f} seconds")
-      st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f}) = ")
+      st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
       st.write("A competitor's next average of 5 (Ao5) will fall in the range between the green dotted lines")
-      st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f}) = ")
+      st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
       st.write("A competitor's next single solve will fall in the range between the orange dotted lines")
 
       st.pyplot(fig)
