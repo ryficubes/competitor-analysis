@@ -381,12 +381,19 @@ if st.button("Submit"):
     r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
     sql_url = r["sql_url"]
 
-    # Step 2: Download and unzip
+    # Step 2: Download and unzip — with ZIP validation
     response = requests.get(sql_url)
-    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-        for name in z.namelist():
-            if name.endswith(".sql"):
-                z.extract(name, ".")
+    
+    if response.status_code == 200 and response.content[:4] == b'PK\x03\x04':
+        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+            for name in z.namelist():
+                if name.endswith(".sql"):
+                    z.extract(name, ".")
+    else:
+        st.error("❌ The downloaded file is not a valid ZIP archive.")
+        st.text(f"Response code: {response.status_code}")
+        st.text(f"First few bytes: {response.content[:100]}")
+
 
     # Step 3: Read SQL content
     with open('WCA_export.sql', 'r') as file:
