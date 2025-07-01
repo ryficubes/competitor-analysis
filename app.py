@@ -25,8 +25,8 @@ import re
 import pandas as pd
 
 st.title("Rubik's Cube Competitor Analysis")
-st.markdown("This is an independent project and not affiliated with the WCA in any way.")
-st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project wanted to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
+st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
+st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project seeks to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
 #st.write("### Simulate a future competition: You pick the competitors, you against you and those who have signed up, create your own field")
 # st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
 
