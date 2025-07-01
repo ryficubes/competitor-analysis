@@ -399,8 +399,13 @@ if st.button("Submit"):
 
 
     # Step 3: Read SQL content
-    with open('WCA_export.sql', 'r') as file:
-        all_lines = file.readlines()
+    # Step 3: Download and extract WCA SQL export
+    r = requests.get(sql_url)
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    sql_filename = [name for name in z.namelist() if name.endswith(".sql")][0]
+    with z.open(sql_filename) as file:
+        all_lines = [line.decode("utf-8") for line in file.readlines()]
+    st.success("✅ Data Loaded!")
 
     st.success("✅ Data Loaded!")
 
