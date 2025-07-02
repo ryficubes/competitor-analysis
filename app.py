@@ -23,6 +23,11 @@ import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+import gdown
+
+# Download from Google Drive using gdown
+url = "https://drive.google.com/file/d/1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny"
+output = "WCA_export174_20250623T000020Z.sql.zip"
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
@@ -396,9 +401,21 @@ if st.button("Submit"):
     start_time = time.time()
     st.write("⏳ Loading...")
 
-    all_lines = load_sql_lines_filtered(new_option, user_list)
+    gdown.download(url, output, quiet=False)
 
-    st.success(f"✅ Data Loaded! Using {len(all_lines)} lines.")
+    zip_path = "WCA_export174_20250623T000020Z.sql.zip"
+    extracted_folder = "wca_sql_data"
+
+    # Extract the zip contents
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extracted_folder)
+    
+    sql_files = [f for f in os.listdir(extracted_folder) if f.endswith(".sql")]
+    if len(sql_files) == 0:
+        st.error("No .sql file found in the ZIP.")
+        st.stop()
+    sql_path = os.path.join(extracted_folder, sql_files[0])
+        st.success(f"✅ Data Loaded!")
 
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
