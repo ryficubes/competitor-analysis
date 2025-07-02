@@ -306,12 +306,24 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
     return data_list, kde_list, valid_names
 
-def load_sql_lines():
+def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000):
     r = requests.get("https://assets.worldcubeassociation.org/export/results/WCA_export174_20250623T000020Z.sql.zip")
     z = zipfile.ZipFile(io.BytesIO(r.content))
     sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
+
+    filtered_lines = []
     with z.open(sql_filename) as f:
-        return [line.decode("utf-8") for line in f.readlines()]
+        for raw_line in f:
+            line = raw_line.decode("utf-8")
+            if any(uid in line for uid in user_list) and event_code in line:
+                filtered_lines.append(line)
+
+            # Optional safety net to avoid memory overload
+            if len(filtered_lines) > buffer_size:
+                break
+
+    return filtered_lines
+
 
 st.markdown("### Step 3: Pick your Event")
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
@@ -381,12 +393,12 @@ if include_cstimer:
     )
 
 if st.button("Submit"):
-    start_time = time.time()  # ⏱️ Start timer
+    start_time = time.time()
     st.write("⏳ Loading...")
 
-    all_lines = load_sql_lines()
+    all_lines = load_sql_lines_filtered(new_option, user_list)
 
-    st.success("✅ Data Loaded!")
+    st.success(f"✅ Data Loaded! Using {len(all_lines)} lines.")
 
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
