@@ -326,11 +326,24 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_p
     wca_id_set = set(user_list)
     filtered_lines = []
 
+    progress = st.empty()
+    status = st.empty()
+    timer = st.empty()
+    start_time = time.time()
+
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             for file_name in zip_ref.namelist():
                 with zip_ref.open(file_name) as f:
+                    total = 0
                     for line in f:
+                        total += 1
+                        if total % 10000 == 0:
+                            elapsed = time.time() - start_time
+                            status.markdown(f"🔍 Parsed {total:,} lines...")
+                            timer.markdown(f"⏱️ Elapsed: {elapsed:.1f} sec")
+                            time.sleep(0.01)  # Let Streamlit update
+
                         try:
                             decoded_line = line.decode("utf-8")
                             if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
@@ -338,8 +351,12 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_p
                         except UnicodeDecodeError:
                             continue
     except zipfile.BadZipFile:
-        st.error("❌ Downloaded file is not a valid ZIP file. Check if the Google Drive file is public and accessible.")
+        st.error("❌ Invalid ZIP file.")
         st.stop()
+
+    elapsed = time.time() - start_time
+    status.markdown(f"✅ Done! Found {len(filtered_lines):,} relevant lines.")
+    timer.markdown(f"⏱️ SQL Filtering Time: **{elapsed:.2f} sec**")
 
     return filtered_lines
 
