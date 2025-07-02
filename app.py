@@ -378,22 +378,21 @@ if st.button("Submit"):
     st.write("⏳ Loading...")
 
     r = requests.get("https://assets.worldcubeassociation.org/export/results/WCA_export174_20250623T000020Z.sql.zip")
-    
+
     if r.status_code == 200:
         try:
-            json_data = r.json()
-            sql_url = json_data.get("sql_url")
-            if not sql_url:
-                st.error("❌ Couldn't find a valid SQL URL in the WCA API response.")
-                st.stop()
+            z = zipfile.ZipFile(io.BytesIO(r.content))
+            sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
+            with z.open(sql_filename) as f:
+                all_lines = [line.decode("utf-8") for line in f.readlines()]
+            st.success("✅ WCA SQL data loaded from ZIP!")
         except Exception as e:
-            st.error("❌ Failed to parse WCA API response as JSON.")
+            st.error("❌ Failed to extract SQL file from the ZIP.")
             st.text(str(e))
             st.stop()
     else:
-        st.error("❌ Failed to fetch WCA export info from API.")
+        st.error("❌ Failed to download WCA ZIP export.")
         st.text(f"Status Code: {r.status_code}")
-        st.text(f"Response Preview: {r.text[:100]}")
         st.stop()
 
 
