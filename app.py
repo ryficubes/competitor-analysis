@@ -25,10 +25,6 @@ import re
 import pandas as pd
 import gdown
 
-# Download from Google Drive using gdown
-url = "https://drive.google.com/file/d/1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny"
-output = "WCA_export174_20250623T000020Z.sql.zip"
-
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
 st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project seeks to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
@@ -312,7 +308,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     return data_list, kde_list, valid_names
 
 def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000):
-    r = requests.get("https://assets.worldcubeassociation.org/export/results/WCA_export174_20250623T000020Z.sql.zip")
+    r = requests.get("https://drive.google.com/file/d/1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny/view?usp=sharing")
     z = zipfile.ZipFile(io.BytesIO(r.content))
     sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
 
@@ -400,22 +396,8 @@ if include_cstimer:
 if st.button("Submit"):
     start_time = time.time()
     st.write("⏳ Loading...")
-
-    gdown.download(url, output, quiet=False)
-
-    zip_path = "WCA_export174_20250623T000020Z.sql.zip"
-    extracted_folder = "wca_sql_data"
-
-    # Extract the zip contents
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extracted_folder)
-    
-    sql_files = [f for f in os.listdir(extracted_folder) if f.endswith(".sql")]
-    if len(sql_files) == 0:
-        st.error("No .sql file found in the ZIP.")
-        st.stop()
-    sql_path = os.path.join(extracted_folder, sql_files[0])
-        st.success(f"✅ Data Loaded!")
+    load_sql_lines_filtered(new_option, user_list)
+    st.success(f"✅ Data Loaded!")
 
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
