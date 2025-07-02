@@ -377,7 +377,7 @@ if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
     st.write("⏳ Loading...")
 
-    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public")
+    r = requests.get("https://assets.worldcubeassociation.org/export/results/WCA_export174_20250623T000020Z.sql.zip")
     
     if r.status_code == 200:
         try:
