@@ -59,9 +59,9 @@ if input_method == "If you would like to simulate a future WCA competition, sele
         })
 
         if user_list:
-            #df = pd.DataFrame(user_list, columns=["WCA ID"])
+            df = pd.DataFrame(user_list, columns=["WCA ID"])
             st.success(f"✅ Extracted {len(user_list)} WCA IDs")
-            #st.dataframe(df)
+            st.dataframe(df)
         else:
             st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
@@ -299,7 +299,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     for i, player_id in enumerate(group_list):
         elapsed = time.time() - start_time
         timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
-        status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
+        status_text.markdown(f"🔍 Processing {player_id} ({i+1} of {total})")
 
         data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
 
@@ -353,12 +353,6 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_p
     except zipfile.BadZipFile:
         st.error("❌ Invalid ZIP file.")
         st.stop()
-
-    elapsed = time.time() - start_time
-    status.markdown(f"✅ Done! Found {len(filtered_lines):,} relevant lines.")
-    timer.markdown(f"⏱️ SQL Filtering Time: **{elapsed:.2f} sec**")
-
-    return filtered_lines
 
     elapsed = time.time() - start_time
     status.markdown(f"✅ Done! Found {len(filtered_lines):,} relevant lines.")
