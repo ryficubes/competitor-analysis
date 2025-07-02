@@ -306,6 +306,13 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
     return data_list, kde_list, valid_names
 
+def load_sql_lines():
+    r = requests.get("https://assets.worldcubeassociation.org/export/results/WCA_export174_20250623T000020Z.sql.zip")
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
+    with z.open(sql_filename) as f:
+        return [line.decode("utf-8") for line in f.readlines()]
+
 st.markdown("### Step 3: Pick your Event")
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
 new_option = ''
@@ -377,28 +384,7 @@ if st.button("Submit"):
     start_time = time.time()  # ⏱️ Start timer
     st.write("⏳ Loading...")
 
-    r = requests.get("https://assets.worldcubeassociation.org/export/results/WCA_export174_20250623T000020Z.sql.zip")
-
-    if r.status_code == 200:
-        try:
-            z = zipfile.ZipFile(io.BytesIO(r.content))
-            sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
-            with z.open(sql_filename) as f:
-                all_lines = [line.decode("utf-8") for line in f.readlines()]
-        except Exception as e:
-            st.error("❌ Failed to extract SQL data from the ZIP file.")
-            st.text(str(e))
-            st.stop()
-    else:
-        st.error("❌ Failed to download WCA ZIP export.")
-        st.text(f"Status Code: {r.status_code}")
-        st.stop()
-
-
-
-    # Step 3: Read SQL content
-    with open('WCA_export.sql', 'r') as file:
-        all_lines = file.readlines()
+    all_lines = load_sql_lines()
 
     st.success("✅ Data Loaded!")
 
