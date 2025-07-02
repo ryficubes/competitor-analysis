@@ -322,40 +322,50 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     return data_list, kde_list, valid_names
 
 
-def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
+def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_path="file.zip"):
     wca_id_set = set(user_list)
     filtered_lines = []
 
-    # Spinner + progress
-    status = st.empty()
-    timer = st.empty()
+    status_text = st.empty()
+    timer_text = st.empty()
+    progress_bar = st.progress(0)
+
     start_time = time.time()
+    total_lines = 0
+    matched_lines = 0
 
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             for file_name in zip_ref.namelist():
                 with zip_ref.open(file_name) as f:
-                    lines = []
-                    for line in f:
+                    decoded_lines = []
+                    for i, line in enumerate(f):
                         try:
                             decoded = line.decode("utf-8")
-                            lines.append(decoded)
                         except UnicodeDecodeError:
                             continue
 
-        # Post-processing
-        filtered_lines = [
-            line for line in lines
-            if event_code in line and any(wca_id in line for wca_id in wca_id_set)
-        ]
+                        total_lines += 1
+                        if event_code in decoded and any(wca_id in decoded for wca_id in wca_id_set):
+                            filtered_lines.append(decoded)
+                            matched_lines += 1
+
+                        # UI updates every 10,000 lines
+                        if total_lines % 10_000 == 0:
+                            progress_bar.progress(min(1.0, total_lines / buffer_size))
+                            elapsed = time.time() - start_time
+                            status_text.markdown(f"🔍 Scanned {total_lines:,} lines — Found {matched_lines:,} matches")
+                            timer_text.markdown(f"⏱️ Elapsed: **{elapsed:.1f} sec**")
+                            time.sleep(0.01)  # Allow Streamlit to refresh UI
 
     except zipfile.BadZipFile:
         st.error("❌ Invalid ZIP file.")
         st.stop()
 
     elapsed = time.time() - start_time
-    status.markdown(f"✅ Parsed {len(lines):,} lines. Found {len(filtered_lines):,} matches.")
-    timer.markdown(f"⏱️ SQL Filtering Time: **{elapsed:.2f} sec**")
+    progress_bar.progress(1.0)
+    status_text.markdown(f"✅ Done! Scanned {total_lines:,} lines — Found {matched_lines:,} relevant lines")
+    timer_text.markdown(f"⏱️ SQL Filtering Time: **{elapsed:.2f} sec**")
 
     return filtered_lines
 
