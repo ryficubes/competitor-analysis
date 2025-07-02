@@ -202,7 +202,11 @@ def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cuto
     samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
 
     all_results = []
-    for _ in range(num_simulations):
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    start_time = time.time()
+
+    for sim_num in range(num_simulations):
         r1_ao5 = [fast_simtournament(s) for s in samplers]
         r1_sorted = np.argsort(r1_ao5)
         r2_indices = r1_sorted[:min(r1_cutoff, len(r1_ao5))]
@@ -224,7 +228,15 @@ def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cuto
                 "Final_Placement": final_rankings.get(name, np.nan)
             })
 
+        # Update progress every loop
+        progress = (sim_num + 1) / num_simulations
+        progress_bar.progress(progress)
+        status_text.markdown(f"🌀 Running simulation {sim_num+1} of {num_simulations}...")
+
+    end_time = time.time()
+    status_text.markdown(f"✅ Finished all {num_simulations} simulations in **{end_time - start_time:.1f} seconds**")
     return pd.DataFrame(all_results)
+
 
 def get_cstimer_times(file, event, num_solves=25):
     data = file.read().decode("utf-8").strip()
