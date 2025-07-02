@@ -306,21 +306,25 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
     return data_list, kde_list, valid_names
 
-def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000):
-    r = requests.get("https://drive.google.com/uc?export=download&id=1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny")
-    z = zipfile.ZipFile(io.BytesIO(r.content))
-    sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
 
+def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_path="file.zip"):
+    """
+    Load and filter lines from a local SQL zip file for a given event and list of WCA IDs.
+    """
+    wca_id_set = set(user_list)
     filtered_lines = []
-    with z.open(sql_filename) as f:
-        for raw_line in f:
-            line = raw_line.decode("utf-8")
-            if any(uid in line for uid in user_list) and event_code in line:
-                filtered_lines.append(line)
 
-            # Optional safety net to avoid memory overload
-            if len(filtered_lines) > buffer_size:
-                break
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        file_name = zip_ref.namelist()[0]  # Assuming there's only one file inside
+        with zip_ref.open(file_name) as f:
+            for line in f:
+                try:
+                    decoded_line = line.decode("utf-8")
+                except UnicodeDecodeError:
+                    continue
+
+                if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
+                    filtered_lines.append(decoded_line)
 
     return filtered_lines
 
@@ -423,7 +427,7 @@ if st.button("Submit"):
     st.write("⏳ Loading...")
     download_file_from_google_drive("1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny", "file.zip")
     st.success(f"✅ Data Loaded!")
-
+    all_lines = load_sql_lines_filtered(new_option, user_list)
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
     else:
