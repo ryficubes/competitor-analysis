@@ -385,9 +385,8 @@ if st.button("Submit"):
             sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
             with z.open(sql_filename) as f:
                 all_lines = [line.decode("utf-8") for line in f.readlines()]
-            st.success("✅ WCA SQL data loaded from ZIP!")
         except Exception as e:
-            st.error("❌ Failed to extract SQL file from the ZIP.")
+            st.error("❌ Failed to extract SQL data from the ZIP file.")
             st.text(str(e))
             st.stop()
     else:
