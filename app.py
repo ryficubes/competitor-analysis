@@ -23,6 +23,9 @@ import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+import gdown
+
+
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
@@ -329,31 +332,9 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_p
     return filtered_lines
 
 
-def download_file_from_google_drive(file_id, destination):
-    session = requests.Session()
-    URL = "https://docs.google.com/uc?export=download"
-
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    token = get_confirm_token(response)
-
-    if token:
-        params = {'id': file_id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
-
-    save_response_content(response, destination)
-
-def get_confirm_token(response):
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            return value
-    return None
-
-def save_response_content(response, destination):
-    CHUNK_SIZE = 32 * 1024
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(CHUNK_SIZE):
-            if chunk:
-                f.write(chunk)
+def download_file_from_google_drive(file_id, destination="file.zip"):
+    url = f"https://drive.google.com/uc?id={file_id}"
+    gdown.download(url, destination, quiet=False)
 
 st.markdown("### Step 3: Pick your Event")
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
@@ -427,7 +408,8 @@ if st.button("Submit"):
     st.write("⏳ Loading...")
     download_file_from_google_drive("1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny", "file.zip")
     st.success(f"✅ Data Loaded!")
-    all_lines = load_sql_lines_filtered(new_option, user_list)
+    all_lines = load_sql_lines_filtered(new_option, user_list, zip_path="file.zip")
+    
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
     else:
