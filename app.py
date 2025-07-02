@@ -23,7 +23,6 @@ import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
-import gdown
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
