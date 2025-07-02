@@ -59,9 +59,9 @@ if input_method == "If you would like to simulate a future WCA competition, sele
         })
 
         if user_list:
-            df = pd.DataFrame(user_list, columns=["WCA ID"])
+            #df = pd.DataFrame(user_list, columns=["WCA ID"])
             st.success(f"✅ Extracted {len(user_list)} WCA IDs")
-            st.dataframe(df)
+            #st.dataframe(df)
         else:
             st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
