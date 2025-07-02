@@ -325,6 +325,32 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000):
     return filtered_lines
 
 
+def download_file_from_google_drive(file_id, destination):
+    session = requests.Session()
+    URL = "https://docs.google.com/uc?export=download"
+
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    token = get_confirm_token(response)
+
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+
+    save_response_content(response, destination)
+
+def get_confirm_token(response):
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+    return None
+
+def save_response_content(response, destination):
+    CHUNK_SIZE = 32 * 1024
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(CHUNK_SIZE):
+            if chunk:
+                f.write(chunk)
+
 st.markdown("### Step 3: Pick your Event")
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
 new_option = ''
@@ -395,7 +421,7 @@ if include_cstimer:
 if st.button("Submit"):
     start_time = time.time()
     st.write("⏳ Loading...")
-    load_sql_lines_filtered(new_option, user_list)
+    download_file_from_google_drive("1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny", "file.zip")
     st.success(f"✅ Data Loaded!")
 
     if not include_cstimer:
