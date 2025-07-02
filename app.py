@@ -23,9 +23,6 @@ import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
-import gdown
-
-
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
@@ -287,7 +284,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     for i, player_id in enumerate(group_list):
         elapsed = time.time() - start_time
         timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
-        status_text.markdown(f"🔍 Processing `{player_id}` ({i+1} of {total})")
+        status_text.markdown(f"🔍 Processing {player_id} ({i+1} of {total})")
 
         data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
 
@@ -308,33 +305,6 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
 
     return data_list, kde_list, valid_names
-
-
-def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_path="file.zip"):
-    wca_id_set = set(user_list)
-    filtered_lines = []
-
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            for file_name in zip_ref.namelist():
-                with zip_ref.open(file_name) as f:
-                    for line in f:
-                        try:
-                            decoded_line = line.decode("utf-8")
-                            if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
-                                filtered_lines.append(decoded_line)
-                        except UnicodeDecodeError:
-                            continue
-    except zipfile.BadZipFile:
-        st.error("❌ Downloaded file is not a valid ZIP file. Check if the Google Drive file is public and accessible.")
-        st.stop()
-
-    return filtered_lines
-
-
-def download_file_from_google_drive(file_id, destination="file.zip"):
-    url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, destination, quiet=False)
 
 st.markdown("### Step 3: Pick your Event")
 option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
@@ -404,12 +374,26 @@ if include_cstimer:
     )
 
 if st.button("Submit"):
-    start_time = time.time()
+    start_time = time.time()  # ⏱️ Start timer
     st.write("⏳ Loading...")
-    download_file_from_google_drive("1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny", "file.zip")
-    st.success(f"✅ Data Loaded!")
-    all_lines = load_sql_lines_filtered(new_option, user_list, zip_path="file.zip")
-    
+
+    # Step 1: Get latest export info
+    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
+    sql_url = r["sql_url"]
+
+    # Step 2: Download and unzip
+    response = requests.get(sql_url)
+    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+        for name in z.namelist():
+            if name.endswith(".sql"):
+                z.extract(name, ".")
+
+    # Step 3: Read SQL content
+    with open('WCA_export.sql', 'r') as file:
+        all_lines = file.readlines()
+
+    st.success("✅ Data Loaded!")
+
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
     else:
