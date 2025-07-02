@@ -307,7 +307,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     return data_list, kde_list, valid_names
 
 def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000):
-    r = requests.get("https://drive.google.com/file/d/1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny/view?usp=sharing")
+    r = requests.get("https://drive.google.com/uc?export=download&id=1qGQSkzWPbwp6rNo8O7ibJ4yH-W1e7dny")
     z = zipfile.ZipFile(io.BytesIO(r.content))
     sql_filename = [f for f in z.namelist() if f.endswith(".sql")][0]
 
