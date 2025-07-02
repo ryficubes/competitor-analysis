@@ -311,23 +311,23 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
 
 
 def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_path="file.zip"):
-    """
-    Load and filter lines from a local SQL zip file for a given event and list of WCA IDs.
-    """
     wca_id_set = set(user_list)
     filtered_lines = []
 
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        file_name = zip_ref.namelist()[0]  # Assuming there's only one file inside
-        with zip_ref.open(file_name) as f:
-            for line in f:
-                try:
-                    decoded_line = line.decode("utf-8")
-                except UnicodeDecodeError:
-                    continue
-
-                if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
-                    filtered_lines.append(decoded_line)
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            for file_name in zip_ref.namelist():
+                with zip_ref.open(file_name) as f:
+                    for line in f:
+                        try:
+                            decoded_line = line.decode("utf-8")
+                            if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
+                                filtered_lines.append(decoded_line)
+                        except UnicodeDecodeError:
+                            continue
+    except zipfile.BadZipFile:
+        st.error("❌ Downloaded file is not a valid ZIP file. Check if the Google Drive file is public and accessible.")
+        st.stop()
 
     return filtered_lines
 
