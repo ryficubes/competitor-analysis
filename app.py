@@ -107,7 +107,7 @@ def summarize_simulation_results(df):
     )
 
     # Assign rank based on best available performance
-    df_summary['Estimated_Rank'] = df_summary['Estimated_Performance'].rank(method="min")
+    df_summary['Estimated_Rank'] = df_summary['Estimated_Performance'].rank(method="average")
 
     # Clean display format
     df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
