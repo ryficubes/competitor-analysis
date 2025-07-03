@@ -323,7 +323,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     return data_list, kde_list, valid_names
 
 
-def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_path="file.zip"):
+def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
     wca_id_set = set(user_list)
     filtered_lines = []
 
@@ -337,20 +337,31 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_p
             for file_name in zip_ref.namelist():
                 with zip_ref.open(file_name) as f:
                     total = 0
-                    for line in f:
+                    for raw_line in f:
                         total += 1
                         if total % 10000 == 0:
                             elapsed = time.time() - start_time
                             status.markdown(f"🔍 Parsed {total:,} lines...")
                             timer.markdown(f"⏱️ Elapsed: {elapsed:.1f} sec")
-                            time.sleep(0.01)  # Let Streamlit update
+                            time.sleep(0.01)
 
                         try:
-                            decoded_line = line.decode("utf-8")
-                            if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
-                                filtered_lines.append(decoded_line)
+                            line = raw_line.decode("utf-8").strip().strip("(),")
+                            parts = [p.strip().strip("'") for p in line.split(",")]
+
+                            # Defensive check
+                            if len(parts) < 15:
+                                continue
+
+                            wca_id = parts[7]
+                            event = parts[1]
+
+                            if wca_id in wca_id_set and event == event_code.strip("'"):
+                                filtered_lines.append(",".join(parts))
+
                         except UnicodeDecodeError:
                             continue
+
     except zipfile.BadZipFile:
         st.error("❌ Invalid ZIP file.")
         st.stop()
@@ -360,6 +371,7 @@ def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_p
     timer.markdown(f"⏱️ SQL Filtering Time: **{elapsed:.2f} sec**")
 
     return filtered_lines
+
 
 
 
