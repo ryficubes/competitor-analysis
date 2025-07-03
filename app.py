@@ -323,7 +323,7 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     return data_list, kde_list, valid_names
 
 
-def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
+def load_sql_lines_filtered(event_code, user_list, buffer_size=10_000_000, zip_path="file.zip"):
     wca_id_set = set(user_list)
     filtered_lines = []
 
@@ -337,30 +337,20 @@ def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
             for file_name in zip_ref.namelist():
                 with zip_ref.open(file_name) as f:
                     total = 0
-                    for raw_line in f:
+                    for line in f:
                         total += 1
                         if total % 10000 == 0:
                             elapsed = time.time() - start_time
                             status.markdown(f"🔍 Parsed {total:,} lines...")
                             timer.markdown(f"⏱️ Elapsed: {elapsed:.1f} sec")
-                            time.sleep(0.01)
+                            time.sleep(0.01)  # Let Streamlit update
 
                         try:
-                            line = raw_line.decode("utf-8")
-                            if event_code not in line:
-                                continue
-
-                            parts = line.split(",")
-                            if not parts:
-                                continue
-
-                            wca_id = parts[0].strip()
-                            if wca_id in wca_id_set:
-                                filtered_lines.append(line)
-
+                            decoded_line = line.decode("utf-8")
+                            if event_code in decoded_line and any(wca_id in decoded_line for wca_id in wca_id_set):
+                                filtered_lines.append(decoded_line)
                         except UnicodeDecodeError:
                             continue
-
     except zipfile.BadZipFile:
         st.error("❌ Invalid ZIP file.")
         st.stop()
