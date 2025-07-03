@@ -42,7 +42,7 @@ user_list = []
 
 if input_method == "If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.":
     st.markdown("### Step 2: Load the Data")
-    st.write("Go to the World Cube Association website (www.worldcubeassociation.org) and choose a competition under “Competitions” tab.")
+    st.write("Go to the World Cube Association website (www.worldcubeassociation.org/competitions?) and choose a competition under “Competitions” tab.")
     st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
     st.write("Press CTRL + S to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the file (not the folder). It should have extracted the WCA IDs.")
     uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
