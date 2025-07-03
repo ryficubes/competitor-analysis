@@ -455,10 +455,6 @@ if st.button("Submit"):
             st.warning("⚠️ Could not extract valid csTimer times for this event.")
             
     st.success("✅ Finished Getting KDE + Solves")
-    for name, times in zip(player_names, data_list):
-        sorted_times = sorted(times)
-        st.markdown(f"### 🕒 Sorted Times used for {name}")
-        st.write(sorted_times)
     df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
     summary_df = summarize_simulation_results(df_simulated)
 
@@ -473,8 +469,8 @@ if st.button("Submit"):
     # Display
 
     display_top_rankings(summary_df)
-    display_advancement_stats(summary_df)
-    display_summary_table(summary_df)
+    #display_advancement_stats(summary_df)
+    #display_summary_table(summary_df)
   # Sample data
     for j, data in enumerate(data_list):
 
