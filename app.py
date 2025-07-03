@@ -125,7 +125,7 @@ def display_top_rankings(summary_df):
     st.subheader("🏆 Final Estimated Rankings")
     ranked_df = summary_df.dropna(subset=['Estimated_Rank'])  # removes "Not Ranked"
     ranked_df = ranked_df.sort_values('Estimated_Rank')
-    display_cols = ['Competitor', 'Estimated_Rank', 'Estimated_Rank_Display']
+    display_cols = ['Competitor', 'Estimated_Rank_Display']
     st.table(ranked_df[display_cols].reset_index(drop=True).round(2))
 
 def display_advancement_stats(summary_df):
