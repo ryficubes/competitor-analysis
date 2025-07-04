@@ -62,26 +62,25 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     if url:
         if st.button("Fetch Competitor Page"):
             try:
-                # Step 2: Download page
+                # Step 1: Download the page
                 response = requests.get(url)
                 response.raise_for_status()
                 html_content = response.text
                 st.success("✅ Page downloaded successfully!")
     
-                # Step 3: Parse with BeautifulSoup
+                # Step 2: Parse HTML
                 soup = BeautifulSoup(html_content, "html.parser")
     
-                # Step 4: Find all WCA ID links using regex
+                # Step 3: Find all links and extract WCA IDs
                 links = soup.find_all("a", href=True)
                 for link in links:
-                    match = re.match(r"/persons/(\d{4}[A-Z]{4}\d{2})", link["href"])
+                    href = link["href"]
+                    match = re.search(r"persons/(\d{4}[A-Z]{4}\d{2})", href)
                     if match:
                         wca_ids.append(match.group(1))
     
-                # Step 5: Remove duplicates
+                # Step 4: Deduplicate and display
                 wca_ids = sorted(set(wca_ids))
-    
-                # Step 6: Display results
                 if wca_ids:
                     st.write(f"✅ Found {len(wca_ids)} WCA IDs:")
                     st.code("\n".join(wca_ids))
