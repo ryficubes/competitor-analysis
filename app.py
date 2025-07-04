@@ -71,13 +71,22 @@ if input_method == "If you would like to simulate a future WCA competition, sele
                 # Step 2: Parse HTML
                 soup = BeautifulSoup(html_content, "html.parser")
     
-                # Step 3: Find all links and extract WCA IDs
-                links = soup.find_all("a", href=True)
-                for link in links:
-                    href = link["href"]
-                    match = re.search(r"persons/(\d{4}[A-Z]{4}\d{2})", href)
-                    if match:
-                        wca_ids.append(match.group(1))
+                # Step 3: Find registration table and extract names + WCA IDs
+                wca_ids = []
+                table = soup.find("table")
+                if table:
+                    rows = table.find_all("tr")[1:]  # Skip header
+                    for row in rows:
+                        cols = row.find_all("td")
+                        if not cols:
+                            continue
+                        name_col = cols[0]
+                        link = name_col.find("a", href=True)
+                        if link and "persons" in link["href"]:
+                            match = re.search(r"persons/(\d{4}[A-Z]{4}\d{2})", link["href"])
+                            if match:
+                                wca_ids.append(match.group(1))
+
     
                 # Step 4: Deduplicate and display
                 wca_ids = sorted(set(wca_ids))
