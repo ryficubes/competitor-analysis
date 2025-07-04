@@ -25,7 +25,15 @@ import re
 import pandas as pd
 import gdown
 
-
+def download_html(url, filename="downloaded_page.html"):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an error for bad status codes
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(response.text)
+        print(f"✅ HTML file downloaded successfully and saved as '{filename}'")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error downloading the HTML file: {e}")
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
@@ -75,16 +83,6 @@ elif input_method == "If you would like to simulate a competition among specific
         if user_list:
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
             st.write(user_list)
-
-def download_html(url, filename="downloaded_page.html"):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raises an error for bad status codes
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(response.text)
-        print(f"✅ HTML file downloaded successfully and saved as '{filename}'")
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Error downloading the HTML file: {e}")
 
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
