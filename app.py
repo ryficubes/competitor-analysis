@@ -53,54 +53,27 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     st.write("Go to the World Cube Association website (www.worldcubeassociation.org/competitions) and choose a competition that you want to simulate.")
     st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
     st.write("Press CTRL + S to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the file (not the folder). It should have extracted the WCA IDs.")
-
-    # Step 1: Paste WCA registration page link
-    url = st.text_input("Paste the WCA registration page URL:")
-    
-    wca_ids = []
-    
-    if url:
-        if st.button("Fetch Competitor Page"):
-            try:
-                # Step 1: Download the page
-                response = requests.get(url)
-                response.raise_for_status()
-                html_content = response.text
-                st.success("✅ Page downloaded successfully!")
-    
-                # Step 2: Parse HTML
-                soup = BeautifulSoup(html_content, "html.parser")
-    
-                # Step 3: Find registration table and extract names + WCA IDs
-                wca_ids = []
-                table = soup.find("table")
-                if table:
-                    rows = table.find_all("tr")[1:]  # Skip header
-                    for row in rows:
-                        cols = row.find_all("td")
-                        if not cols:
-                            continue
-                        name_col = cols[0]
-                        link = name_col.find("a", href=True)
-                        if link and "persons" in link["href"]:
-                            match = re.search(r"persons/(\d{4}[A-Z]{4}\d{2})", link["href"])
-                            if match:
-                                wca_ids.append(match.group(1))
-
-    
-                # Step 4: Deduplicate and display
-                wca_ids = sorted(set(wca_ids))
-                if wca_ids:
-                    st.write(f"✅ Found {len(wca_ids)} WCA IDs:")
-                    st.code("\n".join(wca_ids))
-                else:
-                    st.warning("⚠️ No WCA IDs found on this page.")
-    
-            except requests.exceptions.RequestException as e:
-                st.error(f"❌ Error fetching page: {e}")
+    url = st.text_input('Paste WCA Registration Page in "Competitors" Tab')
+    uploaded_file = download_html(url)
     #uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
+
+    if uploaded_file:
+        soup = BeautifulSoup(uploaded_file, "html.parser")
+        links = soup.find_all("a", href=True)
+        user_list = sorted({
+            match.group(1)
+            for link in links
+            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
+        })
+
+        if user_list:
+            df = pd.DataFrame(user_list, columns=["WCA ID"])
+            st.success(f"✅ Extracted {len(user_list)} WCA IDs")
+            st.dataframe(df)
+        else:
+            st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
 elif input_method == "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.":
     st.markdown("### Step 2: Load the Data")
