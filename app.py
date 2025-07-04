@@ -25,15 +25,7 @@ import re
 import pandas as pd
 import gdown
 
-def download_html(url, filename="downloaded_page.html"):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raises an error for bad status codes
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(response.text)
-        print(f"✅ HTML file downloaded successfully and saved as '{filename}'")
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Error downloading the HTML file: {e}")
+
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
@@ -53,47 +45,27 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     st.write("Go to the World Cube Association website (www.worldcubeassociation.org/competitions) and choose a competition that you want to simulate.")
     st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
     st.write("Press CTRL + S to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the file (not the folder). It should have extracted the WCA IDs.")
-    
-    #uploaded_file = download_html(url)
+    url = st.text_input('Paste WCA Registration Page in "Competitors" Tab')
+    uploaded_file = download_html(url)
     #uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
-    from io import StringIO
 
-    st.markdown("### Step 2: Paste a WCA Registration Page Link")
-    url = st.text_input("Paste the WCA registration page URL (e.g., https://www.worldcubeassociation.org/competitions/SaintJohnsWarmUp2025/registrations)")
-    
-    if url:
-        if st.button("Download and Extract WCA IDs"):
-            try:
-                # Download the HTML from the link
-                response = requests.get(url)
-                response.raise_for_status()
-                html_content = response.text
-                
-                # Convert to file-like object so we can reuse upload-style logic
-                html_file_like = StringIO(html_content)
-    
-                # Now reuse the same BeautifulSoup logic
-                soup = BeautifulSoup(html_file_like, "html.parser")
-                links = soup.find_all("a", href=True)
-                
-                user_list = sorted({
-                    match.group(1)
-                    for link in links
-                    if (match := re.search(r"/persons/(\d{4}[A-Z]{4}\d{2})", link["href"]))
-                })
-    
-                if user_list:
-                    df = pd.DataFrame(user_list, columns=["WCA ID"])
-                    st.success(f"✅ Extracted {len(user_list)} WCA IDs from downloaded page!")
-                    st.dataframe(df)
-                else:
-                    st.warning("⚠️ No WCA IDs found in the downloaded page.")
-    
-            except requests.exceptions.RequestException as e:
-                st.error(f"❌ Error downloading HTML: {e}")
+    if uploaded_file:
+        soup = BeautifulSoup(uploaded_file, "html.parser")
+        links = soup.find_all("a", href=True)
+        user_list = sorted({
+            match.group(1)
+            for link in links
+            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
+        })
 
+        if user_list:
+            df = pd.DataFrame(user_list, columns=["WCA ID"])
+            st.success(f"✅ Extracted {len(user_list)} WCA IDs")
+            st.dataframe(df)
+        else:
+            st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
 elif input_method == "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.":
     st.markdown("### Step 2: Load the Data")
@@ -103,6 +75,16 @@ elif input_method == "If you would like to simulate a competition among specific
         if user_list:
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
             st.write(user_list)
+
+def download_html(url, filename="downloaded_page.html"):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an error for bad status codes
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(response.text)
+        print(f"✅ HTML file downloaded successfully and saved as '{filename}'")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error downloading the HTML file: {e}")
 
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
