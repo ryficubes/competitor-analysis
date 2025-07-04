@@ -206,19 +206,22 @@ def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cuto
     samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
 
     all_results = []
+    progress_bar = st.progress(0)
+    status = st.empty()
+    t_start = time.time()
 
     for sim in range(num_simulations):
-        # Round 1 Ao5s
+        # ROUND 1
         r1_ao5 = np.array([fast_simtournament(s) for s in samplers])
         r1_ranked = np.argsort(r1_ao5)
         r2_indices = r1_ranked[:r1_cutoff]
 
-        # Round 2 Ao5s
+        # ROUND 2
         r2_ao5 = np.array([fast_simtournament(samplers[i]) for i in r2_indices])
         r2_ranked = np.argsort(r2_ao5)
         final_indices = [r2_indices[i] for i in r2_ranked[:r2_cutoff]]
 
-        # Final Ao5s
+        # FINAL
         final_ao5 = np.array([fast_simtournament(samplers[i]) for i in final_indices])
         final_ranks = np.argsort(final_ao5)
 
@@ -235,7 +238,15 @@ def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cuto
                 "Final_Placement": final_rankings.get(player_names[i], np.nan)
             })
 
+        # Update progress
+        progress = (sim + 1) / num_simulations
+        progress_bar.progress(progress)
+        status.markdown(f"🌀 Running simulation {sim + 1} of {num_simulations}...")
+
+    elapsed = time.time() - t_start
+    status.markdown(f"✅ Finished all simulations in **{elapsed:.1f} seconds**")
     return pd.DataFrame(all_results)
+
 
 
 
