@@ -53,8 +53,43 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     st.write("Go to the World Cube Association website (www.worldcubeassociation.org/competitions) and choose a competition that you want to simulate.")
     st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
     st.write("Press CTRL + S to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the file (not the folder). It should have extracted the WCA IDs.")
-    url = st.text_input('Paste WCA Registration Page in "Competitors" Tab')
-    uploaded_file = download_html(url)
+
+    # Step 1: Paste WCA registration page link
+    url = st.text_input("Paste the WCA registration page URL:")
+    
+    wca_ids = []
+    
+    if url:
+        if st.button("Fetch Competitor Page"):
+            try:
+                # Step 2: Download page
+                response = requests.get(url)
+                response.raise_for_status()
+                html_content = response.text
+                st.success("✅ Page downloaded successfully!")
+    
+                # Step 3: Parse with BeautifulSoup
+                soup = BeautifulSoup(html_content, "html.parser")
+    
+                # Step 4: Find all WCA ID links using regex
+                links = soup.find_all("a", href=True)
+                for link in links:
+                    match = re.match(r"/persons/(\d{4}[A-Z]{4}\d{2})", link["href"])
+                    if match:
+                        wca_ids.append(match.group(1))
+    
+                # Step 5: Remove duplicates
+                wca_ids = sorted(set(wca_ids))
+    
+                # Step 6: Display results
+                if wca_ids:
+                    st.write(f"✅ Found {len(wca_ids)} WCA IDs:")
+                    st.code("\n".join(wca_ids))
+                else:
+                    st.warning("⚠️ No WCA IDs found on this page.")
+    
+            except requests.exceptions.RequestException as e:
+                st.error(f"❌ Error fetching page: {e}")
     #uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
