@@ -94,22 +94,6 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
 
-    if uploaded_file:
-        soup = BeautifulSoup(uploaded_file, "html.parser")
-        links = soup.find_all("a", href=True)
-        user_list = sorted({
-            match.group(1)
-            for link in links
-            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
-        })
-
-        if user_list:
-            df = pd.DataFrame(user_list, columns=["WCA ID"])
-            st.success(f"✅ Extracted {len(user_list)} WCA IDs")
-            st.dataframe(df)
-        else:
-            st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
-
 elif input_method == "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.":
     st.markdown("### Step 2: Load the Data")
     user_input = st.text_area("Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)")
