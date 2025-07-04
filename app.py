@@ -199,55 +199,44 @@ def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
 
 # --- Main Simulation ---
 def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cutoff=60, r2_cutoff=20):
-    n_players = len(data_list)
-
-    # Build samplers
     kde_list = [build_adaptive_kde(data) for data in data_list]
     samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
 
     all_results = []
     progress_bar = st.progress(0)
-    status = st.empty()
-    t_start = time.time()
+    status_text = st.empty()
+    start_time = time.time()
 
-    for sim in range(num_simulations):
-        # ROUND 1
-        r1_ao5 = np.array([fast_simtournament(s) for s in samplers])
-        r1_ranked = np.argsort(r1_ao5)
-        r2_indices = r1_ranked[:r1_cutoff]
+    for sim_num in range(num_simulations):
+        r1_ao5 = [fast_simtournament(s) for s in samplers]
+        r1_sorted = np.argsort(r1_ao5)
+        r2_indices = r1_sorted[:min(r1_cutoff, len(r1_ao5))]
+        r2_ao5 = [fast_simtournament(samplers[i]) for i in r2_indices]
+        r2_sorted = np.argsort(r2_ao5)
+        final_indices = [r2_indices[i] for i in r2_sorted[:min(r2_cutoff, len(r2_ao5))]]
+        final_ao5 = [fast_simtournament(samplers[i]) for i in final_indices]
 
-        # ROUND 2
-        r2_ao5 = np.array([fast_simtournament(samplers[i]) for i in r2_indices])
-        r2_ranked = np.argsort(r2_ao5)
-        final_indices = [r2_indices[i] for i in r2_ranked[:r2_cutoff]]
+        final_rankings = {player_names[i]: rank+1 for rank, (i, _) in enumerate(sorted(zip(final_indices, final_ao5), key=lambda x: x[1]))}
 
-        # FINAL
-        final_ao5 = np.array([fast_simtournament(samplers[i]) for i in final_indices])
-        final_ranks = np.argsort(final_ao5)
-
-        final_rankings = {player_names[final_indices[i]]: i + 1 for i in final_ranks}
-
-        for i in range(n_players):
+        for i, name in enumerate(player_names):
             all_results.append({
-                "Competitor": player_names[i],
-                "Ao5_Round1": r1_ao5[i] if i in r1_ranked else np.nan,
+                "Competitor": name,
+                "Ao5_Round1": r1_ao5[i] if i in r1_sorted else np.nan,
                 "Ao5_Round2": r2_ao5[r2_indices.tolist().index(i)] if i in r2_indices else np.nan,
                 "Ao5_Final": final_ao5[final_indices.index(i)] if i in final_indices else np.nan,
                 "Advanced_R1": i in r2_indices,
                 "Advanced_R2": i in final_indices,
-                "Final_Placement": final_rankings.get(player_names[i], np.nan)
+                "Final_Placement": final_rankings.get(name, np.nan)
             })
 
-        # Update progress
-        progress = (sim + 1) / num_simulations
+        # Update progress every loop
+        progress = (sim_num + 1) / num_simulations
         progress_bar.progress(progress)
-        status.markdown(f"🌀 Running simulation {sim + 1} of {num_simulations}...")
+        status_text.markdown(f"🌀 Running simulation {sim_num+1} of {num_simulations}...")
 
-    elapsed = time.time() - t_start
-    status.markdown(f"✅ Finished all simulations in **{elapsed:.1f} seconds**")
+    end_time = time.time()
+    status_text.markdown(f"✅ Finished all {num_simulations} simulations in **{end_time - start_time:.1f} seconds**")
     return pd.DataFrame(all_results)
-
-
 
 
 def get_cstimer_times(file, event, num_solves=25):
@@ -461,11 +450,10 @@ new_times = (times / 5) * -1
 times_amount = int(new_times)
 simulations = st.slider("How many times would you like to simulate this competition?", 100, 1000, 500)
 
-#st.markdown("### Step 5: Do you want to use your csTimer data as one of the competitors?")
-#include_cstimer = st.checkbox("Include csTimer times?")
-#st.checkbox("Do not include csTimer times")
+st.markdown("### Step 5: Do you want to use your csTimer data as one of the competitors?")
+include_cstimer = st.checkbox("Include csTimer times?")
+st.checkbox("Do not include csTimer times")
 cstimer_file = None
-include_cstimer = False
 
 if include_cstimer:
     cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
