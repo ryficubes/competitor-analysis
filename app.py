@@ -45,7 +45,9 @@ if input_method == "If you would like to simulate a future WCA competition, sele
     st.write("Go to the World Cube Association website (www.worldcubeassociation.org/competitions) and choose a competition that you want to simulate.")
     st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
     st.write("Press CTRL + S to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the file (not the folder). It should have extracted the WCA IDs.")
-    uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
+    url = st.text_input('Paste WCA Registration Page in "Competitors" Tab')
+    uploaded_file = download_html(url)
+    #uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
     #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
     #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
 
@@ -73,6 +75,16 @@ elif input_method == "If you would like to simulate a competition among specific
         if user_list:
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
             st.write(user_list)
+
+def download_html(url, filename="downloaded_page.html"):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an error for bad status codes
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(response.text)
+        print(f"✅ HTML file downloaded successfully and saved as '{filename}'")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error downloading the HTML file: {e}")
 
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
