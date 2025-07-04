@@ -337,19 +337,38 @@ def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
             for file_name in zip_ref.namelist():
                 with zip_ref.open(file_name) as f:
                     total = 0
-                    for raw_line in f:
-                        total += 1
-                        if total % 10000 == 0:
-                            elapsed = time.time() - start_time
-                            status.markdown(f"🔍 Parsed {total:,} lines...")
-                            timer.markdown(f"⏱️ Elapsed: {elapsed:.1f} sec")
-                            time.sleep(0.01)
+                    started = False
+                    ended = False
 
+                    for raw_line in f:
                         try:
-                            line = raw_line.decode("utf-8").strip().strip("(),")
+                            line = raw_line.decode("utf-8").strip()
+                        except UnicodeDecodeError:
+                            continue
+
+                        # Start parsing when Results data starts
+                        if not started:
+                            if "INSERT INTO `Results` VALUES" in line:
+                                started = True
+                            continue
+
+                        # Stop parsing after Results table ends
+                        if "ALTER TABLE `Results` ENABLE KEYS" in line:
+                            ended = True
+                            break
+
+                        if started and not ended:
+                            total += 1
+                            if total % 10000 == 0:
+                                elapsed = time.time() - start_time
+                                status.markdown(f"🔍 Parsed {total:,} lines...")
+                                timer.markdown(f"⏱️ Elapsed: {elapsed:.1f} sec")
+                                time.sleep(0.01)
+
+                            line = line.strip("(),")
                             parts = [p.strip().strip("'") for p in line.split(",")]
 
-                            # Defensive check
+                            # Basic data quality check
                             if len(parts) < 15:
                                 continue
 
@@ -358,9 +377,6 @@ def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
 
                             if wca_id in wca_id_set and event == event_code.strip("'"):
                                 filtered_lines.append(",".join(parts))
-
-                        except UnicodeDecodeError:
-                            continue
 
     except zipfile.BadZipFile:
         st.error("❌ Invalid ZIP file.")
