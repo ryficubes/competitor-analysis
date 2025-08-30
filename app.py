@@ -527,7 +527,7 @@ if st.button("Submit"):
       pi_upper = mean + z * std * np.sqrt(1 + 1/n)
 
       # Plot
-      fig, ax = plt.subplots(figsize=(8, 8))
+      fig, ax = plt.subplots(figsize=(8, 12))
       ax.plot(x_values, pdf_values, label="Estimated PDF")
       ax.axvline(mean, color='blue', label='Mean')
       ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
