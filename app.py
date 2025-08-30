@@ -455,7 +455,6 @@ simulations = st.slider("How many times would you like to simulate this competit
 st.markdown("### Step 5: Do you want to use your csTimer data as one of the competitors?")
 include_cstimer = st.checkbox("Include csTimer times?")
 st.checkbox("Do not include csTimer times")
-include_cstimer = False
 cstimer_file = None
 
 if include_cstimer:
