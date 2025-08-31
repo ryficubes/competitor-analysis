@@ -25,51 +25,6 @@ import re
 import pandas as pd
 import gdown
 
-
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.neighbors import KernelDensity
-
-# Example data (replace with your Ao5 data if needed)
-rng = np.random.default_rng(21)
-data = np.concatenate([
-    rng.normal(9.6, 0.55, 120),
-    rng.normal(10.7, 0.32, 24),
-    rng.normal(8.3, 0.22, 10)
-]).astype(float)
-
-# Grid
-x_values = np.linspace(data.min() - 1, data.max() + 1, 1000)
-X = data.reshape(-1, 1)
-x_grid = x_values.reshape(-1, 1)
-
-# Bandwidths to show
-bandwidths = (0.1, 0.2, 0.5)
-
-# Figure
-fig, ax = plt.subplots(figsize=(12, 8))
-
-# Histogram styled as gray with black edges
-ax.hist(data, bins=25, density=True, alpha=0.3, color="gray", edgecolor="black")
-
-# KDE curves
-for bw in bandwidths:
-    kde = KernelDensity(kernel="gaussian", bandwidth=bw).fit(X)
-    log_pdf = kde.score_samples(x_grid)
-    pdf = np.exp(log_pdf)
-    ax.plot(x_values, pdf, linewidth=2, label=f"Bandwidth = {bw}")
-
-# Labels / Title / Legend
-ax.set_xlabel("Solve Time (seconds)")
-ax.set_ylabel("Probability Density")
-ax.set_title("Effect of Bandwidth on KDE (Single Peak with Variance)")
-ax.legend()
-
-# Grid styling
-ax.grid(True)
-st.pyplot(fig)
-
-
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
 st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project seeks to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
