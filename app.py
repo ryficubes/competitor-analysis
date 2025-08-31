@@ -67,7 +67,7 @@ ax.legend()
 
 # Grid styling
 ax.grid(True)
-
+st.pyplot(fig)
 
 
 st.title("Rubik's Cube Competitor Analysis")
