@@ -75,7 +75,6 @@ elif input_method == "If you would like to simulate a competition among specific
         user_list = [id.strip() for id in user_input.split(",") if id.strip()]
         if user_list:
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
-            st.write(user_list)
             
 # --- Behavior-Aware KDE Builder ---
 def describe_solver(data):
@@ -579,9 +578,9 @@ if st.button("Submit"):
             ax.plot(x_values, pdf_values, label="Estimated PDF")
             ax.axvline(mean, label='Mean')
             ax.axvline(ci_lower, linestyle='--', label='95% CI', color = "#2ca02c")
-            ax.axvline(ci_upper, linestyle='--', color = "#2ca02c")
+            ax.axvline(ci_upper, linestyle='--', label='95% CI',color = "#2ca02c")
             ax.axvline(pi_lower, linestyle=':', label='95% PI', color = "#ff7f0e")
-            ax.axvline(pi_upper, linestyle=':', color = "#ff7f0e")
+            ax.axvline(pi_upper, linestyle=':', label='95% PI',color = "#ff7f0e")
             ax.set_xlabel("Solve Time (s)"); ax.set_ylabel("Density"); ax.set_title(f"KDE for {player_names[j]}")
             ax.legend(); ax.grid(True)
             st.markdown(f"### 📈 Stats for {player_names[j]}")
