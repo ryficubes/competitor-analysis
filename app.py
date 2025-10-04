@@ -25,6 +25,7 @@ import pandas as pd
 import gdown
 import matplotlib
 matplotlib.use("Agg")     
+import io, base64
 
 
 st.title("Rubik's Cube Competitor Analysis")
@@ -587,10 +588,18 @@ if st.button("Submit"):
             st.write(f"**95% PI:** ({pi_lower:.2f}, {pi_upper:.2f})")
             fig.tight_layout()
             buf = io.BytesIO()
-            fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+            fig.savefig(buf, format="png", bbox_inches="tight")
             buf.seek(0)
-            st.image(buf)              
+            
+            # Option A: st.image with bytes (simple)
+            st.image(buf, caption=f"KDE for {player_names[j]}")
+            
+            # Option B: inline data URI (bulletproof against media cleanup/load-balancer)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            st.markdown(f"![KDE for {player_names[j]}](data:image/png;base64,{b64})", unsafe_allow_html=True)
+            
             plt.close(fig)
+            buf.close()
 
     except Exception as e:
         st.error("Unexpected error while running the simulation.")
