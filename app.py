@@ -17,13 +17,15 @@ import pandas as pd
 from scipy.stats import gaussian_kde
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.stats as stats
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
 import gdown
+import matplotlib
+matplotlib.use("Agg")     
+
 
 st.title("Rubik's Cube Competitor Analysis")
 st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
@@ -583,7 +585,11 @@ if st.button("Submit"):
             st.write(f"**Mean:** {mean:.2f}s")
             st.write(f"**95% CI:** ({ci_lower:.2f}, {ci_upper:.2f})")
             st.write(f"**95% PI:** ({pi_lower:.2f}, {pi_upper:.2f})")
-            st.pyplot(fig, clear_figure = True)
+            fig.tight_layout()
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+            buf.seek(0)
+            st.image(buf)              
             plt.close(fig)
 
     except Exception as e:
