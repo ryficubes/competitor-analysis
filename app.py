@@ -583,7 +583,7 @@ if st.button("Submit"):
             st.write(f"**Mean:** {mean:.2f}s")
             st.write(f"**95% CI:** ({ci_lower:.2f}, {ci_upper:.2f})")
             st.write(f"**95% PI:** ({pi_lower:.2f}, {pi_upper:.2f})")
-            st.pyplot(fig)
+            st.pyplot(fig, clear_figure = True)
             plt.close(fig)
 
     except Exception as e:
