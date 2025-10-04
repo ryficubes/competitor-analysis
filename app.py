@@ -465,9 +465,21 @@ if include_cstimer:
 if st.button("Submit"):
     start_time = time.time()
     st.write("⏳ Loading...")
-    download_file_from_google_drive("10EPfQTJeFw3hx1Vj_HxKS8sXNx6QRD09", "file.zip")
+        # Step 1: Get latest export info
+    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
+    sql_url = r["sql_url"]
+
+    # Step 2: Download and unzip
+    response = requests.get(sql_url)
+    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+        for name in z.namelist():
+            if name.endswith(".sql"):
+                z.extract(name, ".")
+
+    # Step 3: Read SQL content
+    with open('WCA_export.sql', 'r') as file:
+        all_lines = file.readlines()
     st.success(f"✅ Data Loaded!")
-    all_lines = load_sql_lines_filtered(new_option, user_list, zip_path="file.zip")
     
     if not include_cstimer:
         data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
