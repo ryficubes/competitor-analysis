@@ -584,6 +584,7 @@ if st.button("Submit"):
             st.write(f"**95% CI:** ({ci_lower:.2f}, {ci_upper:.2f})")
             st.write(f"**95% PI:** ({pi_lower:.2f}, {pi_upper:.2f})")
             st.pyplot(fig)
+            plt.close(fig)
 
     except Exception as e:
         st.error("Unexpected error while running the simulation.")
