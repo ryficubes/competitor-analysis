@@ -506,7 +506,6 @@ if st.button("Submit"):
             st.error("Please provide at least one WCA ID (via HTML upload or manual entry).")
             st.stop()
 
-        event_code = EVENT_CODE[option]
         start_time = time.time()
         st.write("⏳ Downloading WCA export…")
 
@@ -518,7 +517,7 @@ if st.button("Submit"):
         resp.raise_for_status()
 
         st.write("🔎 Filtering only your competitors + event from the SQL (no full extract)…")
-        all_lines = stream_filter_sql_from_zip_bytes(resp.content, event_code, user_list)
+        all_lines = stream_filter_sql_from_zip_bytes(resp.content, new_option, user_list)
 
         if not all_lines:
             st.error("No matching results found for your WCA IDs and event. "
@@ -527,7 +526,7 @@ if st.button("Submit"):
 
         # Build KDE data for just those filtered lines
         data_list, kde_list, player_names = build_data_and_kde_with_progress(
-            user_list, event_code, times_amount, all_lines, min_solves=10
+            user_list, new_option, times_amount, all_lines, min_solves=10
         )
 
         if include_cstimer and cstimer_file is not None:
