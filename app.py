@@ -590,11 +590,6 @@ if st.button("Submit"):
             buf = io.BytesIO()
             fig.savefig(buf, format="png", bbox_inches="tight")
             buf.seek(0)
-            
-            # Option A: st.image with bytes (simple)
-            st.image(buf, caption=f"KDE for {player_names[j]}")
-            
-            # Option B: inline data URI (bulletproof against media cleanup/load-balancer)
             b64 = base64.b64encode(buf.getvalue()).decode()
             st.markdown(f"![KDE for {player_names[j]}](data:image/png;base64,{b64})", unsafe_allow_html=True)
             
