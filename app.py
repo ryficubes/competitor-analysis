@@ -389,6 +389,44 @@ def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
     return filtered_lines
 
 
+# --- New: stream-filter the SQL inside the ZIP (no extraction, low RAM) ---
+def stream_filter_sql_from_zip_bytes(zip_bytes, event_code, wca_ids):
+    wca_set = set(wca_ids)
+    filtered = []
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as z:
+        # find the .sql member
+        sql_name = next(n for n in z.namelist() if n.endswith('.sql'))
+        with z.open(sql_name) as f:
+            started = False
+            for raw in f:
+                try:
+                    line = raw.decode('utf-8').strip()
+                except UnicodeDecodeError:
+                    continue
+
+                if not started:
+                    if "INSERT INTO `Results` VALUES" in line:
+                        started = True
+                    continue
+
+                if "ALTER TABLE `Results` ENABLE KEYS" in line:
+                    break
+
+                # strip tuple wrappers, split by commas, keep simple
+                line2 = line.strip("(),")
+                parts = [p.strip().strip("'") for p in line2.split(",")]
+                if len(parts) < 15:
+                    continue
+
+                # columns in WCA Results: eventId, ..., personId ~ index 7 (0-based)
+                event = parts[1]
+                wca_id = parts[7]
+
+                if event == event_code and wca_id in wca_set:
+                    filtered.append(",".join(parts))
+
+    return filtered
 
 
 def download_file_from_google_drive(file_id, destination="file.zip"):
@@ -463,100 +501,91 @@ if include_cstimer:
     )
 
 if st.button("Submit"):
-    start_time = time.time()
-    st.write("⏳ Loading...")
-        # Step 1: Get latest export info
-    r = requests.get("https://www.worldcubeassociation.org/api/v0/export/public").json()
-    sql_url = r["sql_url"]
+    try:
+        if not user_list:
+            st.error("Please provide at least one WCA ID (via HTML upload or manual entry).")
+            st.stop()
 
-    # Step 2: Download and unzip
-    response = requests.get(sql_url)
-    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-        for name in z.namelist():
-            if name.endswith(".sql"):
-                z.extract(name, ".")
+        event_code = EVENT_CODE[option]
+        start_time = time.time()
+        st.write("⏳ Downloading WCA export…")
 
-    # Step 3: Read SQL content
-    with open('WCA_export.sql', 'r') as file:
-        all_lines = file.readlines()
-    st.success(f"✅ Data Loaded!")
-    
-    if not include_cstimer:
-        data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
-    else:
-        data_list, kde_list, player_names = build_data_and_kde_with_progress(user_list, new_option, times_amount, all_lines, simulations)
+        meta = requests.get("https://www.worldcubeassociation.org/api/v0/export/public", timeout=60).json()
+        sql_url = meta["sql_url"]
 
-    if include_cstimer and cstimer_file is not None:
-        grabbed_times = get_cstimer_times(cstimer_file, option, num_cstimer_solves)
-        if grabbed_times:
-            data_list.append(grabbed_times)
-            kde_list.append(build_adaptive_kde(grabbed_times))
-            player_names.append("csTimer User")
-            st.success("✅ csTimer times loaded and added to simulation")
-        else:
-            st.warning("⚠️ Could not extract valid csTimer times for this event.")
-            
-    st.success("✅ Finished Getting KDE + Solves")
-    df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
-    summary_df = summarize_simulation_results(df_simulated)
+        # stream download to memory (ZIP stays compressed)
+        resp = requests.get(sql_url, timeout=300)
+        resp.raise_for_status()
 
-    st.success("✅ Finished Simulating and Summarizing")
+        st.write("🔎 Filtering only your competitors + event from the SQL (no full extract)…")
+        all_lines = stream_filter_sql_from_zip_bytes(resp.content, event_code, user_list)
 
-    end_time = time.time()  # ⏱️ End timer
-    total_time = end_time - start_time
+        if not all_lines:
+            st.error("No matching results found for your WCA IDs and event. "
+                     "Double-check IDs and event choice.")
+            st.stop()
 
-    st.info(f"🧠 **Processed data for {len(player_names)} competitors**")
-    st.info(f"⏲️ **Total runtime: {total_time:.2f} seconds**")
+        # Build KDE data for just those filtered lines
+        data_list, kde_list, player_names = build_data_and_kde_with_progress(
+            user_list, event_code, times_amount, all_lines, min_solves=10
+        )
 
-    # Display
+        if include_cstimer and cstimer_file is not None:
+            grabbed_times = get_cstimer_times(cstimer_file, option, num_cstimer_solves)
+            if grabbed_times:
+                data_list.append(grabbed_times)
+                kde_list.append(build_adaptive_kde(grabbed_times))
+                player_names.append("csTimer User")
+                st.success("✅ csTimer times loaded and added")
+            else:
+                st.warning("⚠️ Could not extract valid csTimer times for this event.")
 
-    display_top_rankings(summary_df)
-    #display_advancement_stats(summary_df)
-    #display_summary_table(summary_df)
-  # Sample data
-    for j, data in enumerate(data_list):
+        if not data_list:
+            st.error("No valid time series were built. Check that the selected competitors have recent solves.")
+            st.stop()
 
-      kde = kde_list[j]
-      x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-      pdf_values = kde(x_values)
+        st.success("✅ Finished Getting KDE + Solves")
+        df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
+        summary_df = summarize_simulation_results(df_simulated)
 
-      # CDF (for future use if needed)
-      cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
-      cdf_values /= cdf_values[-1]
-      cdf_interpolator = interp1d(x_values, cdf_values)
+        st.success("✅ Finished Simulating and Summarizing")
 
-      # Compute statistics
-      mean = np.mean(data)
-      std = np.std(data, ddof=1)
-      n = len(data)
-      z = stats.norm.ppf(0.975)
+        total_time = time.time() - start_time
+        st.info(f"🧠 Processed {len(player_names)} competitors — ⏲️ {total_time:.2f}s total")
 
-      ci_lower = mean - z * std / np.sqrt(n)
-      ci_upper = mean + z * std / np.sqrt(n)
-      pi_lower = mean - z * std * np.sqrt(1 + 1/n)
-      pi_upper = mean + z * std * np.sqrt(1 + 1/n)
+        display_top_rankings(summary_df)
 
-      # Plot
-      fig, ax = plt.subplots(figsize=(12, 8))
-      ax.plot(x_values, pdf_values, label="Estimated PDF")
-      ax.axvline(mean, color='blue', label='Mean')
-      ax.axvline(ci_lower, color='green', linestyle='--', label='95% CI')
-      ax.axvline(ci_upper, color='green', linestyle='--')
-      ax.axvline(pi_lower, color='orange', linestyle=':', label='95% PI')
-      ax.axvline(pi_upper, color='orange', linestyle=':')
+        # plots
+        for j, data in enumerate(data_list):
+            kde = kde_list[j]
+            x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
+            pdf_values = kde(x_values)
 
-      ax.set_xlabel("Solve Time (seconds)")
-      ax.set_ylabel("Probability Density")
-      ax.set_title(f"KDE for {player_names[j]}")
-      ax.legend()
-      ax.grid(True)
+            cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
+            cdf_values /= cdf_values[-1]
 
-      # Stats as text
-      st.markdown(f"### 📈 Stats for {player_names[j]}")
-      st.write(f"**Mean:** {mean:.2f} seconds")
-      st.write(f"**95% Confidence Interval:** ({ci_lower:.2f}, {ci_upper:.2f})")
-      st.write("A competitor's next average of 5 (Ao5) will fall in the range between the green dotted lines")
-      st.write(f"**95% Prediction Interval:** ({pi_lower:.2f}, {pi_upper:.2f})")
-      st.write("A competitor's next single solve will fall in the range between the orange dotted lines")
+            mean = np.mean(data)
+            std = np.std(data, ddof=1)
+            n = len(data)
+            z = stats.norm.ppf(0.975)
+            ci_lower = mean - z * std / np.sqrt(n)
+            ci_upper = mean + z * std / np.sqrt(n)
+            pi_lower = mean - z * std * np.sqrt(1 + 1/n)
+            pi_upper = mean + z * std * np.sqrt(1 + 1/n)
 
-      st.pyplot(fig)
+            fig, ax = plt.subplots(figsize=(12, 8))
+            ax.plot(x_values, pdf_values, label="Estimated PDF")
+            ax.axvline(mean, label='Mean')
+            ax.axvline(ci_lower, linestyle='--', label='95% CI'); ax.axvline(ci_upper, linestyle='--')
+            ax.axvline(pi_lower, linestyle=':', label='95% PI');  ax.axvline(pi_upper, linestyle=':')
+            ax.set_xlabel("Solve Time (s)"); ax.set_ylabel("Density"); ax.set_title(f"KDE for {player_names[j]}")
+            ax.legend(); ax.grid(True)
+            st.markdown(f"### 📈 Stats for {player_names[j]}")
+            st.write(f"**Mean:** {mean:.2f}s")
+            st.write(f"**95% CI:** ({ci_lower:.2f}, {ci_upper:.2f})")
+            st.write(f"**95% PI:** ({pi_lower:.2f}, {pi_upper:.2f})")
+            st.pyplot(fig)
+
+    except Exception as e:
+        st.error("Unexpected error while running the simulation.")
+        st.exception(e)
