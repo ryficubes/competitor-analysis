@@ -577,7 +577,7 @@ if st.button("Submit"):
 
             fig, ax = plt.subplots(figsize=(12, 8))
             ax.plot(x_values, pdf_values, label="Estimated PDF")
-            ax.axvline(meanlabel='Mean')
+            ax.axvline(mean, label='Mean')
             ax.axvline(ci_lower, linestyle='--', label='95% CI', color = "#2ca02c"); ax.axvline(ci_upper, linestyle='--')
             ax.axvline(pi_lower, linestyle=':', label='95% PI', color = "#ff7f0e");  ax.axvline(pi_upper, linestyle=':')
             ax.set_xlabel("Solve Time (s)"); ax.set_ylabel("Density"); ax.set_title(f"KDE for {player_names[j]}")
