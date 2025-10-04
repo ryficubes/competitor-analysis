@@ -1,0 +1,30 @@
+# VCS / editor junk
+.git
+.gitignore
+.gitattributes
+*.swp
+.vscode/
+.idea/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.build/
+
+# Local env/secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Big or dev-only stuff
+.devcontainer/
+tests/
+notebooks/
+data/
+*.csv
+*.parquet
+*.ipynb
