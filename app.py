@@ -1,4 +1,4 @@
-import warnings
+kimport warnings
 import time
 warnings.filterwarnings("ignore")
 import streamlit as st
@@ -441,7 +441,7 @@ new_option = ''
 if option == "2x2":
   new_option = '222'
 elif option == "3x3":
-  new_option = "'333'"
+  new_option = '333'
 elif option == "4x4":
   new_option = "'444'"
 elif option == "5x5":
