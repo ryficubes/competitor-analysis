@@ -1,4 +1,4 @@
-kimport warnings
+import warnings
 import time
 warnings.filterwarnings("ignore")
 import streamlit as st
