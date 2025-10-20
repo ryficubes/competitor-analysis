@@ -443,9 +443,9 @@ if option == "2x2":
 elif option == "3x3":
   new_option = '333'
 elif option == "4x4":
-  new_option = "'444'"
+  new_option = '444'
 elif option == "5x5":
-  new_option = "'555'"
+  new_option = '555'
 elif option =='6x6':
   new_option = '666'
 elif option =='7x7':
@@ -455,7 +455,7 @@ elif option =='3x3 Blindfolded':
 elif option =='FMC':
   new_option = '333fm'
 elif option =='3x3 OH':
-  new_option = "'333oh'"
+  new_option = '333oh'
 elif option =='Clock':
   new_option = 'clock'
 elif option =='Megaminx':
