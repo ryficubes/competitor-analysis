@@ -1,5 +1,6 @@
 import warnings
 import time
+import tempfile
 warnings.filterwarnings("ignore")
 import streamlit as st
 import numpy as np
@@ -511,15 +512,28 @@ if st.button("Submit"):
         start_time = time.time()
         st.write("⏳ Downloading WCA export…")
 
-        meta = requests.get("https://www.worldcubeassociation.org/api/v0/export/public", timeout=60).json()
+        meta = requests.get("https://www.worldcubeassociation.org/api/v0/export/public",timeout=60).json()
+
         sql_url = meta["sql_url"]
+        
+        st.write("⏳ Downloading WCA export...")
+        
+        with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
+            with requests.get(sql_url, stream=True, timeout=300) as resp:
+                resp.raise_for_status()
+                for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        tmp.write(chunk)
+                        
+        tmp.flush()
+    
+        st.write("🔎 Filtering only your competitors + event from the SQL...")
 
-        # stream download to memory (ZIP stays compressed)
-        resp = requests.get(sql_url, timeout=300)
-        resp.raise_for_status()
-
-        st.write("🔎 Filtering only your competitors + event from the SQL (no full extract)…")
-        all_lines = stream_filter_sql_from_zip_bytes(resp.content, new_option, user_list)
+        all_lines = load_sql_lines_filtered(
+            new_option,
+            user_list,
+            zip_path=tmp.name
+        )
 
         if not all_lines:
             st.error("No matching results found for your WCA IDs and event. "
