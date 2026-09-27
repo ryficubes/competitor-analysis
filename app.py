@@ -1,294 +1,482 @@
 import warnings
 import time
-import tempfile
+import json
+import re
+import io
+import base64
+
 warnings.filterwarnings("ignore")
+
 import streamlit as st
 import numpy as np
-import random as randomx
-from scipy.stats import gaussian_kde
-from scipy.integrate import cumulative_trapezoid
-from scipy.interpolate import interp1d
+import pandas as pd
+import requests
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import json
-import requests, zipfile, io
-import numpy as np
-import pandas as pd
+
 from scipy.stats import gaussian_kde
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-import seaborn as sns
 import scipy.stats as stats
 from bs4 import BeautifulSoup
-import re
-import pandas as pd
-import gdown
-import matplotlib
-matplotlib.use("Agg")     
-import io, base64
 
+
+# ============================================================
+# Configuration
+# ============================================================
+
+WCA_API_BASE = "https://wca-rest-api.robiningelbrecht.be"
+
+st.set_page_config(
+    page_title="Rubik's Cube Competitor Analysis",
+    layout="wide",
+)
+
+
+# ============================================================
+# Page header
+# ============================================================
 
 st.title("Rubik's Cube Competitor Analysis")
-st.markdown("This is an independent project made by Ryan Saito and not affiliated with the WCA in any way.")
-st.write("Similar to sports statisticians, I am working hard to make metrics that accurately predict real-world performance. This project seeks to make a weighted estimated rank based on recent solves instead of lifetime best solves.")
-#st.write("### Simulate a future competition: You pick the competitors, you against you and those who have signed up, create your own field")
-# st.image("https://i.imgur.com/OYvs0v0.png", use_container_width=True)
+st.markdown(
+    "This is an independent project made by Ryan Saito and not affiliated "
+    "with the WCA in any way."
+)
+st.write(
+    "Similar to sports statisticians, I am working hard to make metrics that "
+    "accurately predict real-world performance. This project seeks to make a "
+    "weighted estimated rank based on recent solves instead of lifetime best solves."
+)
 
-# Let user choose input method
+
+# ============================================================
+# Step 1 / Step 2: competitors
+# ============================================================
+
 st.write("### Step 1: Choose what type of competition you would like to simulate?")
-#st.write("If you would like to simulate a real future competition, follow the instructions above and upload an HTML file. If you would like to simulate a competition among certain competitors, enter their WCA IDs manually.")
-input_method = st.radio("Choose one:", ["If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.", "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually."])
+
+input_method = st.radio(
+    "Choose one:",
+    [
+        "If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.",
+        "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.",
+    ],
+)
 
 user_list = []
 
-if input_method == "If you would like to simulate a future WCA competition, select this option to upload an HTML file of the competition.":
+if input_method.startswith("If you would like to simulate a future WCA competition"):
     st.markdown("### Step 2: Load the Data")
     st.image("https://i.imgur.com/9ATfnS8.gif", use_container_width=True)
-    
-    st.write("Go to the World Cube Association website (www.worldcubeassociation.org/competitions) and choose a competition that you want to simulate.")
-    st.write("Once you find the competition you want to simulate, select that competition and click on the “Competitors” tab.")
-    st.write("Press **CTRL + S** to save the HTML file and press Enter while noting where you saved the file. Return back to the Streamlit website to upload the **FILE (not the folder)**. It should have extracted the WCA IDs.")
-    uploaded_file = st.file_uploader("Upload the saved HTML file from a WCA registration page", type="html")
-    #st.write("DO **CTRL/CMD + S** TO SAVE HTML FILE")
-    #st.image("https://i.imgur.com/xHw6NNt.png", caption="Saint John's Warm Up 2025 - Registrants", use_container_width=True)
+
+    st.write(
+        "Go to the World Cube Association website "
+        "(www.worldcubeassociation.org/competitions) and choose a competition "
+        "that you want to simulate."
+    )
+    st.write(
+        "Once you find the competition you want to simulate, select that "
+        "competition and click on the “Competitors” tab."
+    )
+    st.write(
+        "Press **CTRL/CMD + S** to save the HTML file. Return here and upload "
+        "the **HTML FILE (not the folder)**."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Upload the saved HTML file from a WCA registration page",
+        type="html",
+    )
 
     if uploaded_file:
         soup = BeautifulSoup(uploaded_file, "html.parser")
         links = soup.find_all("a", href=True)
-        user_list = sorted({
-            match.group(1)
-            for link in links
-            if (match := re.search(r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})", link["href"]))
-        })
+
+        user_list = sorted(
+            {
+                match.group(1)
+                for link in links
+                if (
+                    match := re.search(
+                        r"/persons/([0-9]{4}[A-Z]{4}[0-9]{2})",
+                        link["href"],
+                    )
+                )
+            }
+        )
 
         if user_list:
-            df = pd.DataFrame(user_list, columns=["WCA ID"])
             st.success(f"✅ Extracted {len(user_list)} WCA IDs")
-            st.dataframe(df)
+            st.dataframe(pd.DataFrame(user_list, columns=["WCA ID"]))
         else:
             st.warning("⚠️ No WCA IDs found in the uploaded HTML file.")
 
-elif input_method == "If you would like to simulate a competition among specific competitors that you choose, select this option to enter their WCA IDs manually.":
+else:
     st.markdown("### Step 2: Load the Data")
-    user_input = st.text_area("Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)")
+
+    user_input = st.text_area(
+        "Enter WCA IDs separated by commas (e.g., 2018SAIT06, 2022CHAI02)"
+    )
+
     if user_input:
-        user_list = [id.strip() for id in user_input.split(",") if id.strip()]
+        user_list = [
+            wca_id.strip().upper()
+            for wca_id in user_input.split(",")
+            if wca_id.strip()
+        ]
+
         if user_list:
             st.success(f"✅ Collected {len(user_list)} WCA IDs")
-            
-# --- Behavior-Aware KDE Builder ---
+
+
+# ============================================================
+# KDE / simulation helpers
+# ============================================================
+
 def describe_solver(data):
     mean = np.mean(data)
     std = np.std(data)
     cv = std / mean if mean > 0 else 0
     return mean, std, cv
 
-def build_adaptive_kde(data):
-    mean, std, cv = describe_solver(data)
-    base_bw = 0.2
-    scaled_bw = base_bw + 0.3 * cv  # adapt bandwidth to variability
-    return gaussian_kde(data, bw_method=scaled_bw)
-
-# --- Summary and Display ---
-def summarize_simulation_results(df):
-    # Group and compute mean values for each round
-    df_summary = df.groupby('Competitor').agg({
-        'Ao5_Round1': 'mean',
-        'Ao5_Round2': 'mean',
-        'Ao5_Final': 'mean',
-        'Advanced_R1': 'mean',
-        'Advanced_R2': 'mean',
-        'Final_Placement': lambda x: np.nanmean(x)
-    }).reset_index()
-
-    # Create a fallback column for ranking: Final > Round2 > Round1
-    df_summary['Estimated_Performance'] = (
-        df_summary['Ao5_Final']
-        .fillna(df_summary['Ao5_Round2'])
-        .fillna(df_summary['Ao5_Round1'])
-    )
-
-    # Assign rank based on best available performance
-    df_summary['Estimated_Rank'] = df_summary['Estimated_Performance'].rank(method="min")
-
-    # Clean display format
-    df_summary['Estimated_Rank_Display'] = df_summary['Estimated_Rank'].apply(
-    lambda x: int(x) if not pd.isna(x) else "Not Ranked")
-
-
-
-    return df_summary.sort_values('Estimated_Rank', na_position="last")
-
-def display_summary_table(summary_df):
-    st.subheader("📊 Full Summary")
-    st.dataframe(summary_df.style.format(precision=2))
-
-def display_top_rankings(summary_df):
-    st.subheader("🏆 Final Estimated Rankings")
-    ranked_df = summary_df.dropna(subset=['Estimated_Rank'])  # removes "Not Ranked"
-    ranked_df = ranked_df.sort_values('Estimated_Rank')
-    display_cols = ['Competitor', 'Estimated_Rank_Display']
-    st.table(ranked_df[display_cols].reset_index(drop=True).round(2))
-
-def display_advancement_stats(summary_df):
-    adv_df = summary_df[['Competitor','Advanced_R2']].copy()
-    adv_df = adv_df.rename(columns={
-        "Advanced_R2": "Made Finals"
-    })
-
-    adv_df = adv_df.sort_values("Made Finals", ascending=False)
-
-    st.subheader("🔁 Advancement Probabilities (R1 → R2 → Final)")
-    st.table(adv_df.reset_index(drop=True).style.format({
-        "Advanced to Round 2": "{:.0%}",
-        "Made Finals": "{:.0%}"
-    }))
-
-def get_recent_times_and_name(player_id, cube_category, times_amount, all_lines):
-    pulled_lines = []
-    for line in all_lines:
-        if player_id in line:
-            parts = line.split(',')
-            if len(parts) > 2 and parts[1].strip().strip("'") == cube_category.strip().strip("'"):
-                pulled_lines.append(line)
-
-    if not pulled_lines:
-        return None, None
-
-    most_recent = pulled_lines[times_amount:]
-    times = []
-    name = None
-    for entry in most_recent:
-        parts = entry.split(',')
-        times += parts[10:15]
-        if not name:
-            name = parts[6].strip().strip("'")
-
-    try:
-        int_list = np.asarray([int(x) for x in times if x.strip().isdigit()])
-    except ValueError:
-        return None, name
-
-    int_list = int_list[int_list > 0]
-    if len(int_list) == 0:
-        return None, name
-
-    return [x / 100 for x in int_list], name
-
 
 def build_adaptive_kde(data):
     mean, std, cv = describe_solver(data)
     base_bw = 0.2
-    scaled_bw = base_bw + 0.3 * cv  # adapt bandwidth to variability
+    scaled_bw = base_bw + 0.3 * cv
     return gaussian_kde(data, bw_method=scaled_bw)
+
 
 def build_percentile_sampler(data, kde):
     x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
     pdf_values = kde(x_values)
-    cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
+
+    cdf_values = cumulative_trapezoid(
+        pdf_values,
+        x_values,
+        initial=0,
+    )
+
+    if cdf_values[-1] <= 0:
+        raise ValueError("Could not build a valid probability distribution.")
+
     cdf_values /= cdf_values[-1]
-    cdf_interpolator = interp1d(cdf_values, x_values, bounds_error=False, fill_value=(x_values[0], x_values[-1]))
+
+    # interp1d requires increasing x values. KDE CDF values can occasionally
+    # contain tiny duplicate regions, so remove duplicates first.
+    cdf_values, unique_indices = np.unique(cdf_values, return_index=True)
+    x_values = x_values[unique_indices]
+
+    cdf_interpolator = interp1d(
+        cdf_values,
+        x_values,
+        bounds_error=False,
+        fill_value=(x_values[0], x_values[-1]),
+    )
+
     return lambda percentile: float(cdf_interpolator(percentile / 100))
 
-# --- Fast Ao5 with Behavioral Variability ---
+
 def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
     percentiles = np.random.rand(5) * 100
-    heavy_mask = np.random.rand(5) < heavy_tail_chance
     base_samples = np.array([sampler(p) for p in percentiles])
+
+    # Small solve-to-solve noise.
     noise = np.random.normal(0, base_noise, 5)
-    values = np.where(heavy_mask, np.random.uniform(10, 16, 5), base_samples + noise)
+    values = base_samples + noise
+
+    # Preserve the original idea of occasional bad solves, but make them
+    # relative to the solver rather than forcing every event into 10-16 sec.
+    heavy_mask = np.random.rand(5) < heavy_tail_chance
+    if np.any(heavy_mask):
+        normal_center = np.median(base_samples)
+        bad_solve_floor = max(normal_center * 1.15, normal_center + base_noise)
+        bad_solve_ceiling = max(normal_center * 1.60, bad_solve_floor + base_noise)
+        values[heavy_mask] = np.random.uniform(
+            bad_solve_floor,
+            bad_solve_ceiling,
+            heavy_mask.sum(),
+        )
+
+    # Times / scores should never become negative from random noise.
+    values = np.maximum(values, 0.01)
+
+    # Ao5 = drop best and worst, average middle 3.
     return round(np.mean(np.sort(values)[1:4]), 2)
 
-# --- Main Simulation ---
-def simulate_rounds_behavioral(data_list, player_names, num_simulations, r1_cutoff=60, r2_cutoff=20):
+
+def simulate_rounds_behavioral(
+    data_list,
+    player_names,
+    num_simulations,
+    r1_cutoff=60,
+    r2_cutoff=20,
+):
     kde_list = [build_adaptive_kde(data) for data in data_list]
-    samplers = [build_percentile_sampler(data, kde) for data, kde in zip(data_list, kde_list)]
+    samplers = [
+        build_percentile_sampler(data, kde)
+        for data, kde in zip(data_list, kde_list)
+    ]
 
     all_results = []
     progress_bar = st.progress(0)
     status_text = st.empty()
+
     start_time = time.time()
 
     for sim_num in range(num_simulations):
-        r1_ao5 = [fast_simtournament(s) for s in samplers]
-        r1_sorted = np.argsort(r1_ao5)
-        r2_indices = r1_sorted[:min(r1_cutoff, len(r1_ao5))]
-        r2_ao5 = [fast_simtournament(samplers[i]) for i in r2_indices]
-        r2_sorted = np.argsort(r2_ao5)
-        final_indices = [r2_indices[i] for i in r2_sorted[:min(r2_cutoff, len(r2_ao5))]]
-        final_ao5 = [fast_simtournament(samplers[i]) for i in final_indices]
+        r1_ao5 = [fast_simtournament(sampler) for sampler in samplers]
 
-        final_rankings = {player_names[i]: rank+1 for rank, (i, _) in enumerate(sorted(zip(final_indices, final_ao5), key=lambda x: x[1]))}
+        r1_sorted = np.argsort(r1_ao5)
+        r2_indices = r1_sorted[: min(r1_cutoff, len(r1_ao5))]
+
+        r2_ao5 = [
+            fast_simtournament(samplers[i])
+            for i in r2_indices
+        ]
+
+        r2_sorted = np.argsort(r2_ao5)
+
+        final_indices = [
+            r2_indices[i]
+            for i in r2_sorted[: min(r2_cutoff, len(r2_ao5))]
+        ]
+
+        final_ao5 = [
+            fast_simtournament(samplers[i])
+            for i in final_indices
+        ]
+
+        final_rankings = {
+            player_names[i]: rank + 1
+            for rank, (i, _) in enumerate(
+                sorted(
+                    zip(final_indices, final_ao5),
+                    key=lambda x: x[1],
+                )
+            )
+        }
+
+        r2_index_lookup = {
+            competitor_index: round_index
+            for round_index, competitor_index in enumerate(r2_indices)
+        }
+
+        final_index_lookup = {
+            competitor_index: round_index
+            for round_index, competitor_index in enumerate(final_indices)
+        }
 
         for i, name in enumerate(player_names):
-            all_results.append({
-                "Competitor": name,
-                "Ao5_Round1": r1_ao5[i] if i in r1_sorted else np.nan,
-                "Ao5_Round2": r2_ao5[r2_indices.tolist().index(i)] if i in r2_indices else np.nan,
-                "Ao5_Final": final_ao5[final_indices.index(i)] if i in final_indices else np.nan,
-                "Advanced_R1": i in r2_indices,
-                "Advanced_R2": i in final_indices,
-                "Final_Placement": final_rankings.get(name, np.nan)
-            })
+            all_results.append(
+                {
+                    "Competitor": name,
+                    "Ao5_Round1": r1_ao5[i],
+                    "Ao5_Round2": (
+                        r2_ao5[r2_index_lookup[i]]
+                        if i in r2_index_lookup
+                        else np.nan
+                    ),
+                    "Ao5_Final": (
+                        final_ao5[final_index_lookup[i]]
+                        if i in final_index_lookup
+                        else np.nan
+                    ),
+                    "Advanced_R1": i in r2_index_lookup,
+                    "Advanced_R2": i in final_index_lookup,
+                    "Final_Placement": final_rankings.get(name, np.nan),
+                }
+            )
 
-        # Update progress every loop
-        progress = (sim_num + 1) / num_simulations
-        progress_bar.progress(progress)
-        status_text.markdown(f"🌀 Running simulation {sim_num+1} of {num_simulations}...")
+        progress_bar.progress((sim_num + 1) / num_simulations)
+        status_text.markdown(
+            f"🌀 Running simulation {sim_num + 1} of {num_simulations}..."
+        )
 
-    end_time = time.time()
-    status_text.markdown(f"✅ Finished all {num_simulations} simulations in **{end_time - start_time:.1f} seconds**")
+    elapsed = time.time() - start_time
+
+    status_text.markdown(
+        f"✅ Finished all {num_simulations} simulations in "
+        f"**{elapsed:.1f} seconds**"
+    )
+
     return pd.DataFrame(all_results)
 
 
-def get_cstimer_times(file, event, num_solves=25):
-    data = file.read().decode("utf-8").strip()
-    dictionary = json.loads(data)
-    session_data = json.loads(dictionary['properties']['sessionData'].strip())
+def summarize_simulation_results(df):
+    df_summary = (
+        df.groupby("Competitor")
+        .agg(
+            {
+                "Ao5_Round1": "mean",
+                "Ao5_Round2": "mean",
+                "Ao5_Final": "mean",
+                "Advanced_R1": "mean",
+                "Advanced_R2": "mean",
+                "Final_Placement": lambda x: np.nanmean(x),
+            }
+        )
+        .reset_index()
+    )
 
-    session_name = None
-    j = 1
-    for i in range(1, len(session_data.keys())):
-        if session_data[str(i)]['name'] == event:
-            session_name = f'session{j}'
-            break
-        j += 1
+    df_summary["Estimated_Performance"] = (
+        df_summary["Ao5_Final"]
+        .fillna(df_summary["Ao5_Round2"])
+        .fillna(df_summary["Ao5_Round1"])
+    )
 
-    if session_name is None:
-        st.error(f"❌ No session matching event '{event}' found in csTimer file.")
-        return []
+    df_summary["Estimated_Rank"] = df_summary[
+        "Estimated_Performance"
+    ].rank(method="min")
 
-    times_raw = [
-        dictionary[session_name][i][0][1] / 1000
-        for i in range(1, len(dictionary[session_name]))
+    df_summary["Estimated_Rank_Display"] = df_summary[
+        "Estimated_Rank"
+    ].apply(
+        lambda x: int(x) if not pd.isna(x) else "Not Ranked"
+    )
+
+    return df_summary.sort_values(
+        "Estimated_Rank",
+        na_position="last",
+    )
+
+
+def display_top_rankings(summary_df):
+    st.subheader("🏆 Final Estimated Rankings")
+
+    ranked_df = summary_df.dropna(
+        subset=["Estimated_Rank"]
+    ).sort_values("Estimated_Rank")
+
+    display_cols = [
+        "Competitor",
+        "Estimated_Rank_Display",
     ]
-    
-    # Show the actual times for debugging
-    trimmed_times = times_raw[-num_solves:]
-    st.write(f"📋 **csTimer Times Used ({len(trimmed_times)}):** {trimmed_times}")
 
-    return trimmed_times
+    st.table(
+        ranked_df[display_cols]
+        .reset_index(drop=True)
+    )
 
-def build_data_and_kde(group_list, cube_category, times_amount, all_lines, min_solves=10, ):
-    data_list = []
-    kde_list = []
-    valid_names = []
 
-    for player_id in group_list:
-        data = get_recent_times(player_id, cube_category, times_amount, all_lines)
-        if data is None:
-            st.warning(f"⚠️ Skipping {player_id} due to missing/short data")
+# ============================================================
+# WCA API helpers
+# ============================================================
+
+@st.cache_data(ttl=60 * 60 * 12, show_spinner=False)
+def fetch_person_data(player_id):
+    """
+    Fetch one competitor's static JSON file from the unofficial WCA REST API.
+    The API is updated daily, so caching for 12 hours is reasonable.
+    """
+    url = f"{WCA_API_BASE}/persons/{player_id}.json"
+
+    response = requests.get(
+        url,
+        timeout=30,
+        headers={"User-Agent": "competitor-analysis/1.0"},
+    )
+
+    if response.status_code == 404:
+        return None
+
+    response.raise_for_status()
+    return response.json()
+
+
+def convert_wca_solve_value(value, event_code):
+    """
+    Convert a WCA solve value into the units used by this app.
+
+    For timed events, WCA values are stored in centiseconds, so divide by 100.
+    FMC values are move counts, so keep them as-is.
+
+    DNF / DNS / missing values are negative or zero and are ignored.
+    """
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+
+    if value <= 0:
+        return None
+
+    if event_code == "333fm":
+        return float(value)
+
+    return value / 100.0
+
+
+def get_recent_times_from_api(
+    player_id,
+    event_code,
+    num_solves,
+):
+    """
+    Return the competitor's most recent valid solves for an event.
+
+    The person endpoint groups results by competition. We follow the API's
+    competitionIds ordering, then flatten the selected event's rounds and keep
+    the last num_solves valid attempts.
+    """
+    person = fetch_person_data(player_id)
+
+    if not person:
+        return None, None
+
+    name = person.get("name", player_id)
+    results = person.get("results", {}) or {}
+
+    # Prefer competitionIds so we use the API's intended competition ordering.
+    competition_ids = [
+        comp_id
+        for comp_id in person.get("competitionIds", [])
+        if comp_id in results
+    ]
+
+    # Include any result keys not present in competitionIds.
+    seen = set(competition_ids)
+    competition_ids.extend(
+        comp_id
+        for comp_id in results.keys()
+        if comp_id not in seen
+    )
+
+    solves = []
+
+    for comp_id in competition_ids:
+        competition_results = results.get(comp_id, {})
+        event_results = competition_results.get(event_code, [])
+
+        if not isinstance(event_results, list):
             continue
 
-        kde = gaussian_kde(data, bw_method=0.2)
-        data_list.append(data)
-        kde_list.append(kde)
-        valid_names.append(player_id)
+        for round_result in event_results:
+            if not isinstance(round_result, dict):
+                continue
 
-    return data_list, kde_list, valid_names
+            for raw_solve in round_result.get("solves", []):
+                solve = convert_wca_solve_value(
+                    raw_solve,
+                    event_code,
+                )
 
-def build_data_and_kde_with_progress(group_list, cube_category, times_amount, all_lines, min_solves=10):
+                if solve is not None:
+                    solves.append(solve)
+
+    if not solves:
+        return None, name
+
+    return solves[-num_solves:], name
+
+
+def build_data_and_kde_with_progress(
+    group_list,
+    event_code,
+    num_solves,
+):
     data_list = []
     kde_list = []
     valid_names = []
@@ -296,320 +484,411 @@ def build_data_and_kde_with_progress(group_list, cube_category, times_amount, al
     progress_bar = st.progress(0)
     status_text = st.empty()
     timer_text = st.empty()
-    start_time = time.time()
 
+    start_time = time.time()
     total = len(group_list)
 
     for i, player_id in enumerate(group_list):
         elapsed = time.time() - start_time
-        timer_text.markdown(f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**")
-        status_text.markdown(f"🔍 Processing {player_id} ({i+1} of {total})")
 
-        data, name = get_recent_times_and_name(player_id, cube_category, times_amount, all_lines)
+        timer_text.markdown(
+            f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**"
+        )
 
-        # Skip if not enough valid times
-        if data is None or len(data) < 2:
-            st.warning(f"⚠️ Skipping {name or player_id} – not enough valid solves")
+        status_text.markdown(
+            f"🔍 Loading {player_id} ({i + 1} of {total})"
+        )
+
+        try:
+            data, name = get_recent_times_from_api(
+                player_id,
+                event_code,
+                num_solves,
+            )
+        except requests.RequestException as exc:
+            st.warning(
+                f"⚠️ Could not load {player_id}: {exc}"
+            )
+            progress_bar.progress((i + 1) / total)
             continue
 
-        kde = gaussian_kde(data, bw_method=0.2)
+        if data is None or len(data) < 2:
+            st.warning(
+                f"⚠️ Skipping {name or player_id} — "
+                "not enough valid solves for this event."
+            )
+            progress_bar.progress((i + 1) / total)
+            continue
+
+        # gaussian_kde can fail if all values are identical.
+        if np.std(data) == 0:
+            st.warning(
+                f"⚠️ Skipping {name or player_id} — "
+                "all selected solve values are identical."
+            )
+            progress_bar.progress((i + 1) / total)
+            continue
+
+        kde = gaussian_kde(
+            data,
+            bw_method=0.2,
+        )
+
         data_list.append(data)
         kde_list.append(kde)
-        valid_names.append(f"{name} ({player_id})")
+        valid_names.append(
+            f"{name} ({player_id})"
+        )
 
         progress_bar.progress((i + 1) / total)
 
-    status_text.markdown(f"✅ Done! Processed **{len(valid_names)} competitors**.")
     elapsed = time.time() - start_time
-    timer_text.markdown(f"⏱️ Final Elapsed Time: **{elapsed:.1f} seconds**")
+
+    status_text.markdown(
+        f"✅ Done! Processed **{len(valid_names)} competitors**."
+    )
+
+    timer_text.markdown(
+        f"⏱️ Data Loading Time: **{elapsed:.1f} seconds**"
+    )
 
     return data_list, kde_list, valid_names
 
 
-def load_sql_lines_filtered(event_code, user_list, zip_path="file.zip"):
-    wca_id_set = set(user_list)
-    filtered_lines = []
+# ============================================================
+# csTimer helper
+# ============================================================
 
-    progress = st.empty()
-    status = st.empty()
-    timer = st.empty()
-    start_time = time.time()
+def get_cstimer_times(file, event, num_solves=25):
+    data = file.read().decode("utf-8").strip()
+    dictionary = json.loads(data)
 
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            for file_name in zip_ref.namelist():
-                with zip_ref.open(file_name) as f:
-                    total = 0
-                    started = False
-                    ended = False
+    session_data = json.loads(
+        dictionary["properties"]["sessionData"].strip()
+    )
 
-                    for raw_line in f:
-                        try:
-                            line = raw_line.decode("utf-8").strip()
-                        except UnicodeDecodeError:
-                            continue
+    session_name = None
+    j = 1
 
-                        # Start parsing when Results data starts
-                        if not started:
-                            if "INSERT INTO `Results` VALUES" in line:
-                                started = True
-                            continue
+    for i in range(1, len(session_data.keys())):
+        if session_data[str(i)]["name"] == event:
+            session_name = f"session{j}"
+            break
 
-                        # Stop parsing after Results table ends
-                        if "ALTER TABLE `Results` ENABLE KEYS" in line:
-                            ended = True
-                            break
+        j += 1
 
-                        if started and not ended:
-                            total += 1
-                            if total % 10000 == 0:
-                                elapsed = time.time() - start_time
-                                status.markdown(f"🔍 Parsed {total:,} lines...")
-                                timer.markdown(f"⏱️ Elapsed: {elapsed:.1f} sec")
-                                time.sleep(0.01)
+    if session_name is None:
+        st.error(
+            f"❌ No session matching event '{event}' "
+            "found in csTimer file."
+        )
+        return []
 
-                            line = line.strip("(),")
-                            parts = [p.strip().strip("'") for p in line.split(",")]
+    times_raw = [
+        dictionary[session_name][i][0][1] / 1000
+        for i in range(1, len(dictionary[session_name]))
+    ]
 
-                            # Basic data quality check
-                            if len(parts) < 15:
-                                continue
+    trimmed_times = times_raw[-num_solves:]
 
-                            wca_id = parts[7]
-                            event = parts[1]
+    st.write(
+        f"📋 **csTimer Times Used ({len(trimmed_times)}):** "
+        f"{trimmed_times}"
+    )
 
-                            if wca_id in wca_id_set and event == event_code.strip("'"):
-                                filtered_lines.append(",".join(parts))
-
-    except zipfile.BadZipFile:
-        st.error("❌ Invalid ZIP file.")
-        st.stop()
-
-    elapsed = time.time() - start_time
-    status.markdown(f"✅ Done! Found {len(filtered_lines):,} relevant lines.")
-    timer.markdown(f"⏱️ SQL Filtering Time: **{elapsed:.2f} sec**")
-
-    return filtered_lines
+    return trimmed_times
 
 
-# --- New: stream-filter the SQL inside the ZIP (no extraction, low RAM) ---
-def stream_filter_sql_from_zip_bytes(zip_bytes, event_code, wca_ids):
-    wca_set = set(wca_ids)
-    filtered = []
-
-    with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as z:
-        # find the .sql member
-        sql_name = next(n for n in z.namelist() if n.endswith('.sql'))
-        with z.open(sql_name) as f:
-            started = False
-            for raw in f:
-                try:
-                    line = raw.decode('utf-8').strip()
-                except UnicodeDecodeError:
-                    continue
-
-                if not started:
-                    if "INSERT INTO `Results` VALUES" in line:
-                        started = True
-                    continue
-
-                if "ALTER TABLE `Results` ENABLE KEYS" in line:
-                    break
-
-                # strip tuple wrappers, split by commas, keep simple
-                line2 = line.strip("(),")
-                parts = [p.strip().strip("'") for p in line2.split(",")]
-                if len(parts) < 15:
-                    continue
-
-                # columns in WCA Results: eventId, ..., personId ~ index 7 (0-based)
-                event = parts[1]
-                wca_id = parts[7]
-
-                if event == event_code and wca_id in wca_set:
-                    filtered.append(",".join(parts))
-
-    return filtered
-
-
-def download_file_from_google_drive(file_id, destination="file.zip"):
-    url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, destination, quiet=False)
+# ============================================================
+# Step 3: event
+# ============================================================
 
 st.markdown("### Step 3: Pick your Event")
-option = st.selectbox("Which event would you like to analyze?", ("2x2", "3x3", "4x4",'5x5','6x6','7x7','3x3 Blindfolded','FMC','3x3 OH','Clock','Megaminx','Pyraminx','Skewb','Square-1','4x4 Blindfolded','5x5 Blindfolded'),)
-new_option = ''
-if option == "2x2":
-  new_option = '222'
-elif option == "3x3":
-  new_option = '333'
-elif option == "4x4":
-  new_option = '444'
-elif option == "5x5":
-  new_option = '555'
-elif option =='6x6':
-  new_option = '666'
-elif option =='7x7':
-  new_option = '777'
-elif option =='3x3 Blindfolded':
-  new_option = '333bf'
-elif option =='FMC':
-  new_option = '333fm'
-elif option =='3x3 OH':
-  new_option = '333oh'
-elif option =='Clock':
-  new_option = 'clock'
-elif option =='Megaminx':
-  new_option = 'minx'
-elif option =='Pyraminx':
-  new_option = 'pyra'
-  new_option = 'pyram'
-elif option =='Skewb':
-  new_option = 'skewb'
-elif option =='Square-1':
-  new_option = 'sq1'
-elif option =='4x4 Blindfolded':
-  new_option = '444bf'
-elif option =='5x5 Blindfolded':
-  new_option = '555bf'
 
-#st.write(new_option)
+EVENT_CODES = {
+    "2x2": "222",
+    "3x3": "333",
+    "4x4": "444",
+    "5x5": "555",
+    "6x6": "666",
+    "7x7": "777",
+    "3x3 Blindfolded": "333bf",
+    "FMC": "333fm",
+    "3x3 OH": "333oh",
+    "Clock": "clock",
+    "Megaminx": "minx",
+    "Pyraminx": "pyram",
+    "Skewb": "skewb",
+    "Square-1": "sq1",
+    "4x4 Blindfolded": "444bf",
+    "5x5 Blindfolded": "555bf",
+}
 
-#user_id = st.text_input("WCA ID(s)", "2018SAIT07")
-#split_list = user_id.split(', ')
-#user_list = []
-#for i in split_list:
-  #user_list.append(i.strip())
+option = st.selectbox(
+    "Which event would you like to analyze?",
+    tuple(EVENT_CODES.keys()),
+)
 
-#if st.button("Add User"):
-  #st.write(user_list)
+new_option = EVENT_CODES[option]
+
+
+# ============================================================
+# Step 4: parameters
+# ============================================================
 
 st.markdown("### Step 4: Choose your Parameters")
 
-times = st.slider("How many solves of the competitor's most recent solves would you like to include?", 5, 200, 25, step = 5)
-new_times = (times / 5) * -1
-times_amount = int(new_times)
-simulations = st.slider("How many times would you like to simulate this competition?", 100, 1000, 500)
+times = st.slider(
+    "How many of each competitor's most recent solves would you like to include?",
+    min_value=5,
+    max_value=200,
+    value=25,
+    step=5,
+)
 
-st.markdown("### Step 5: Do you want to use your csTimer data as one of the competitors?")
-include_cstimer = st.checkbox("Include csTimer times?")
-st.checkbox("Do not include csTimer times")
+simulations = st.slider(
+    "How many times would you like to simulate this competition?",
+    min_value=100,
+    max_value=1000,
+    value=500,
+)
+
+
+# ============================================================
+# Step 5: csTimer
+# ============================================================
+
+st.markdown(
+    "### Step 5: Do you want to use your csTimer data "
+    "as one of the competitors?"
+)
+
+include_cstimer = st.checkbox(
+    "Include csTimer times?"
+)
+
 cstimer_file = None
+num_cstimer_solves = 200
 
 if include_cstimer:
-    cstimer_file = st.file_uploader("Upload csTimer File", type=['txt'])
+    cstimer_file = st.file_uploader(
+        "Upload csTimer File",
+        type=["txt"],
+    )
+
     num_cstimer_solves = st.slider(
         "Number of most recent csTimer solves to include",
-        min_value=50, max_value=1000, value=200, step=25
+        min_value=50,
+        max_value=1000,
+        value=200,
+        step=25,
     )
+
+
+# ============================================================
+# Submit
+# ============================================================
 
 if st.button("Submit"):
     try:
         if not user_list:
-            st.error("Please provide at least one WCA ID (via HTML upload or manual entry).")
+            st.error(
+                "Please provide at least one WCA ID "
+                "(via HTML upload or manual entry)."
+            )
             st.stop()
 
         start_time = time.time()
 
-        meta = requests.get("https://www.worldcubeassociation.org/api/v0/export/public",timeout=60).json()
-
-        sql_url = meta["sql_url"]
-        
-        st.write("⏳ Downloading WCA export...")
-        
-        with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
-            with requests.get(sql_url, stream=True, timeout=300) as resp:
-                resp.raise_for_status()
-                for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        tmp.write(chunk)
-                        
-            tmp.flush()
-        
-            st.write("🔎 Filtering only your competitors + event from the SQL...")
-    
-            all_lines = load_sql_lines_filtered(
-                new_option,
-                user_list,
-                zip_path=tmp.name
-            )
-
-        if not all_lines:
-            st.error("No matching results found for your WCA IDs and event. "
-                     "Double-check IDs and event choice.")
-            st.stop()
-
-        # Build KDE data for just those filtered lines
-        data_list, kde_list, player_names = build_data_and_kde_with_progress(
-            user_list, new_option, times_amount, all_lines, min_solves=10
+        st.write(
+            "🔎 Loading competitor results from the WCA results API..."
         )
 
-        if include_cstimer and cstimer_file is not None:
-            grabbed_times = get_cstimer_times(cstimer_file, option, num_cstimer_solves)
-            if grabbed_times:
-                data_list.append(grabbed_times)
-                kde_list.append(build_adaptive_kde(grabbed_times))
-                player_names.append("csTimer User")
-                st.success("✅ csTimer times loaded and added")
+        data_list, kde_list, player_names = (
+            build_data_and_kde_with_progress(
+                user_list,
+                new_option,
+                times,
+            )
+        )
+
+        if include_cstimer:
+            if cstimer_file is None:
+                st.warning(
+                    "⚠️ csTimer is enabled, but no csTimer file was uploaded."
+                )
             else:
-                st.warning("⚠️ Could not extract valid csTimer times for this event.")
+                grabbed_times = get_cstimer_times(
+                    cstimer_file,
+                    option,
+                    num_cstimer_solves,
+                )
+
+                if len(grabbed_times) >= 2 and np.std(grabbed_times) > 0:
+                    data_list.append(grabbed_times)
+                    kde_list.append(
+                        build_adaptive_kde(grabbed_times)
+                    )
+                    player_names.append("csTimer User")
+                    st.success(
+                        "✅ csTimer times loaded and added"
+                    )
+                else:
+                    st.warning(
+                        "⚠️ Could not extract enough valid csTimer "
+                        "times for this event."
+                    )
 
         if not data_list:
-            st.error("No valid time series were built. Check that the selected competitors have recent solves.")
+            st.error(
+                "No valid time series were built. Check the WCA IDs "
+                "and selected event."
+            )
             st.stop()
 
         st.success("✅ Finished Getting KDE + Solves")
-        df_simulated = simulate_rounds_behavioral(data_list, player_names, simulations)
-        summary_df = summarize_simulation_results(df_simulated)
 
-        st.success("✅ Finished Simulating and Summarizing")
+        df_simulated = simulate_rounds_behavioral(
+            data_list,
+            player_names,
+            simulations,
+        )
+
+        summary_df = summarize_simulation_results(
+            df_simulated
+        )
+
+        st.success(
+            "✅ Finished Simulating and Summarizing"
+        )
 
         total_time = time.time() - start_time
-        st.info(f"🧠 Processed {len(player_names)} competitors — ⏲️ {total_time:.2f}s total")
+
+        st.info(
+            f"🧠 Processed {len(player_names)} competitors — "
+            f"⏲️ {total_time:.2f}s total"
+        )
 
         display_top_rankings(summary_df)
 
-        # plots
+        # ====================================================
+        # Plots
+        # ====================================================
+
         for j, data in enumerate(data_list):
             kde = kde_list[j]
-            x_values = np.linspace(min(data) - 1, max(data) + 1, 1000)
-            pdf_values = kde(x_values)
 
-            cdf_values = cumulative_trapezoid(pdf_values, x_values, initial=0)
-            cdf_values /= cdf_values[-1]
+            x_values = np.linspace(
+                min(data) - 1,
+                max(data) + 1,
+                1000,
+            )
+
+            pdf_values = kde(x_values)
 
             mean = np.mean(data)
             std = np.std(data, ddof=1)
             n = len(data)
+
             z = stats.norm.ppf(0.975)
+
             ci_lower = mean - z * std / np.sqrt(n)
             ci_upper = mean + z * std / np.sqrt(n)
-            pi_lower = mean - z * std * np.sqrt(1 + 1/n)
-            pi_upper = mean + z * std * np.sqrt(1 + 1/n)
 
-            fig, ax = plt.subplots(figsize=(12, 8))
-            ax.plot(x_values, pdf_values, label="Estimated PDF")
-            ax.axvline(mean, label='Mean')
-            ax.axvline(ci_lower, linestyle='--', label='95% CI', color = "#2ca02c")
-            ax.axvline(ci_upper, linestyle='--', color = "#2ca02c")
-            ax.axvline(pi_lower, linestyle=':', label='95% PI', color = "#ff7f0e")
-            ax.axvline(pi_upper, linestyle=':', color = "#ff7f0e")
-            ax.set_xlabel("Solve Time (s)"); ax.set_ylabel("Density"); ax.set_title(f"KDE for {player_names[j]}")
-            ax.legend(); ax.grid(True)
-            st.markdown(f"### 📈 Stats for {player_names[j]}")
-            st.write(f"**Mean:** {mean:.2f}s")
-            st.write(f"**95% CI:** ({ci_lower:.2f}, {ci_upper:.2f})")
-            st.write(f"**95% PI:** ({pi_lower:.2f}, {pi_upper:.2f})")
+            pi_lower = (
+                mean
+                - z * std * np.sqrt(1 + 1 / n)
+            )
+
+            pi_upper = (
+                mean
+                + z * std * np.sqrt(1 + 1 / n)
+            )
+
+            fig, ax = plt.subplots(
+                figsize=(12, 8)
+            )
+
+            ax.plot(
+                x_values,
+                pdf_values,
+                label="Estimated PDF",
+            )
+
+            ax.axvline(
+                mean,
+                label="Mean",
+            )
+
+            ax.axvline(
+                ci_lower,
+                linestyle="--",
+                label="95% CI",
+            )
+
+            ax.axvline(
+                ci_upper,
+                linestyle="--",
+            )
+
+            ax.axvline(
+                pi_lower,
+                linestyle=":",
+                label="95% PI",
+            )
+
+            ax.axvline(
+                pi_upper,
+                linestyle=":",
+            )
+
+            unit_label = (
+                "Moves"
+                if new_option == "333fm"
+                else "Solve Time (s)"
+            )
+
+            ax.set_xlabel(unit_label)
+            ax.set_ylabel("Density")
+            ax.set_title(
+                f"KDE for {player_names[j]}"
+            )
+
+            ax.legend()
+            ax.grid(True)
+
+            st.markdown(
+                f"### 📈 Stats for {player_names[j]}"
+            )
+
+            unit_suffix = (
+                " moves"
+                if new_option == "333fm"
+                else "s"
+            )
+
+            st.write(
+                f"**Mean:** {mean:.2f}{unit_suffix}"
+            )
+
+            st.write(
+                f"**95% CI:** "
+                f"({ci_lower:.2f}, {ci_upper:.2f})"
+            )
+
+            st.write(
+                f"**95% PI:** "
+                f"({pi_lower:.2f}, {pi_upper:.2f})"
+            )
+
             fig.tight_layout()
-            buf = io.BytesIO()
-            fig.savefig(buf, format="png", bbox_inches="tight")
-            buf.seek(0)
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            st.markdown(f"![KDE for {player_names[j]}](data:image/png;base64,{b64})", unsafe_allow_html=True)
-            
+
+            # st.pyplot is simpler and avoids embedding a huge base64 string.
+            st.pyplot(fig, use_container_width=True)
             plt.close(fig)
-            buf.close()
 
     except Exception as e:
-        st.error("Unexpected error while running the simulation.")
+        st.error(
+            "Unexpected error while running the simulation."
+        )
         st.exception(e)
