@@ -5,6 +5,7 @@ import re
 import csv
 import zipfile
 import os
+import io
 
 warnings.filterwarnings("ignore")
 
