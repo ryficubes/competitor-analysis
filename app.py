@@ -27,7 +27,7 @@ from bs4 import BeautifulSoup
 # Configuration
 # ============================================================
 
-WCA_API_BASE = "https://wca-rest-api.robiningelbrecht.be"
+WCA_API_BASE = "https://wca-rest-api.robiningelbrecht.be/api"
 
 st.set_page_config(
     page_title="Rubik's Cube Competitor Analysis",
