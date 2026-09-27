@@ -1,6 +1,4 @@
-from pathlib import Path
-
-code = r'''import warnings
+import warnings
 import time
 import json
 import re
@@ -964,9 +962,3 @@ if st.button("Submit"):
             "Unexpected error while running the simulation."
         )
         st.exception(e)
-'''
-
-path = Path("/mnt/data/app_wca_profiles.py")
-path.write_text(code)
-compile(code, str(path), "exec")
-print(f"Created and syntax-checked {path}")
