@@ -1,9 +1,10 @@
-import warnings
+from pathlib import Path
+
+code = r'''import warnings
 import time
 import json
 import re
-import io
-import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 warnings.filterwarnings("ignore")
 
@@ -27,7 +28,10 @@ from bs4 import BeautifulSoup
 # Configuration
 # ============================================================
 
-WCA_API_BASE = "https://wca-rest-api.robiningelbrecht.be/api"
+WCA_PERSON_URL = "https://www.worldcubeassociation.org/persons/{wca_id}?event={event_code}"
+REQUEST_HEADERS = {
+    "User-Agent": "competitor-analysis/1.0 (personal analytics project)"
+}
 
 st.set_page_config(
     page_title="Rubik's Cube Competitor Analysis",
@@ -164,8 +168,7 @@ def build_percentile_sampler(data, kde):
 
     cdf_values /= cdf_values[-1]
 
-    # interp1d requires increasing x values. KDE CDF values can occasionally
-    # contain tiny duplicate regions, so remove duplicates first.
+    # Remove duplicate CDF values so interpolation always has increasing x.
     cdf_values, unique_indices = np.unique(cdf_values, return_index=True)
     x_values = x_values[unique_indices]
 
@@ -183,27 +186,26 @@ def fast_simtournament(sampler, base_noise=0.15, heavy_tail_chance=0.05):
     percentiles = np.random.rand(5) * 100
     base_samples = np.array([sampler(p) for p in percentiles])
 
-    # Small solve-to-solve noise.
     noise = np.random.normal(0, base_noise, 5)
     values = base_samples + noise
 
-    # Preserve the original idea of occasional bad solves, but make them
-    # relative to the solver rather than forcing every event into 10-16 sec.
+    # Occasional poor solves, scaled to the competitor/event instead of
+    # hard-coding 10-16 seconds for every event.
     heavy_mask = np.random.rand(5) < heavy_tail_chance
     if np.any(heavy_mask):
-        normal_center = np.median(base_samples)
-        bad_solve_floor = max(normal_center * 1.15, normal_center + base_noise)
-        bad_solve_ceiling = max(normal_center * 1.60, bad_solve_floor + base_noise)
+        center = np.median(base_samples)
+        bad_floor = max(center * 1.15, center + base_noise)
+        bad_ceiling = max(center * 1.60, bad_floor + base_noise)
+
         values[heavy_mask] = np.random.uniform(
-            bad_solve_floor,
-            bad_solve_ceiling,
+            bad_floor,
+            bad_ceiling,
             heavy_mask.sum(),
         )
 
-    # Times / scores should never become negative from random noise.
     values = np.maximum(values, 0.01)
 
-    # Ao5 = drop best and worst, average middle 3.
+    # Ao5: remove the best and worst, average the middle 3.
     return round(np.mean(np.sort(values)[1:4]), 2)
 
 
@@ -259,12 +261,12 @@ def simulate_rounds_behavioral(
             )
         }
 
-        r2_index_lookup = {
+        r2_lookup = {
             competitor_index: round_index
             for round_index, competitor_index in enumerate(r2_indices)
         }
 
-        final_index_lookup = {
+        final_lookup = {
             competitor_index: round_index
             for round_index, competitor_index in enumerate(final_indices)
         }
@@ -275,17 +277,17 @@ def simulate_rounds_behavioral(
                     "Competitor": name,
                     "Ao5_Round1": r1_ao5[i],
                     "Ao5_Round2": (
-                        r2_ao5[r2_index_lookup[i]]
-                        if i in r2_index_lookup
+                        r2_ao5[r2_lookup[i]]
+                        if i in r2_lookup
                         else np.nan
                     ),
                     "Ao5_Final": (
-                        final_ao5[final_index_lookup[i]]
-                        if i in final_index_lookup
+                        final_ao5[final_lookup[i]]
+                        if i in final_lookup
                         else np.nan
                     ),
-                    "Advanced_R1": i in r2_index_lookup,
-                    "Advanced_R2": i in final_index_lookup,
+                    "Advanced_R1": i in r2_lookup,
+                    "Advanced_R2": i in final_lookup,
                     "Final_Placement": final_rankings.get(name, np.nan),
                 }
             )
@@ -350,126 +352,165 @@ def display_top_rankings(summary_df):
         subset=["Estimated_Rank"]
     ).sort_values("Estimated_Rank")
 
-    display_cols = [
-        "Competitor",
-        "Estimated_Rank_Display",
-    ]
-
     st.table(
-        ranked_df[display_cols]
-        .reset_index(drop=True)
+        ranked_df[
+            ["Competitor", "Estimated_Rank_Display"]
+        ].reset_index(drop=True)
     )
 
 
 # ============================================================
-# WCA API helpers
+# Official WCA profile-page scraper
 # ============================================================
 
-@st.cache_data(ttl=60 * 60 * 12, show_spinner=False)
-def fetch_person_data(player_id):
+def parse_wca_value(text, event_code):
     """
-    Fetch one competitor's static JSON file from the unofficial WCA REST API.
-    The API is updated daily, so caching for 12 hours is reasonable.
+    Convert one displayed WCA attempt into a numeric value.
+
+    Examples:
+      7.21     -> 7.21 seconds
+      1:04.02  -> 64.02 seconds
+      42       -> 42 moves for FMC
+      DNF/DNS  -> None
+
+    Record labels and punctuation are stripped before parsing.
     """
-    url = f"{WCA_API_BASE}/persons/{player_id}.json"
-
-    response = requests.get(
-        url,
-        timeout=30,
-        headers={"User-Agent": "competitor-analysis/1.0"},
-    )
-
-    if response.status_code == 404:
+    if text is None:
         return None
 
-    response.raise_for_status()
-    return response.json()
+    value = text.strip().upper()
 
-
-def convert_wca_solve_value(value, event_code):
-    """
-    Convert a WCA solve value into the units used by this app.
-
-    For timed events, WCA values are stored in centiseconds, so divide by 100.
-    FMC values are move counts, so keep them as-is.
-
-    DNF / DNS / missing values are negative or zero and are ignored.
-    """
-    try:
-        value = int(value)
-    except (TypeError, ValueError):
+    if not value or value in {"DNF", "DNS", "-", "—"}:
         return None
 
-    if value <= 0:
+    # Remove common surrounding marks/record labels if they appear.
+    value = value.replace("*", "")
+    value = value.strip("()[]")
+
+    if value in {"DNF", "DNS"}:
         return None
 
+    # FMC is displayed as a move count.
     if event_code == "333fm":
+        match = re.fullmatch(r"\d+(?:\.\d+)?", value)
+        return float(value) if match else None
+
+    # Timed result containing minutes, e.g. 1:04.02.
+    minute_match = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", value)
+    if minute_match:
+        minutes = int(minute_match.group(1))
+        seconds = float(minute_match.group(2))
+        return minutes * 60 + seconds
+
+    # Standard seconds value, e.g. 7.21 or 59.96.
+    if re.fullmatch(r"\d+(?:\.\d+)?", value):
         return float(value)
 
-    return value / 100.0
+    return None
 
 
-def get_recent_times_from_api(
+def find_results_table(soup):
+    """
+    Find the person's results table by looking for the header cells
+    Competition / Round / Solves.
+    """
+    for table in soup.find_all("table"):
+        header_text = " ".join(
+            th.get_text(" ", strip=True)
+            for th in table.find_all("th")
+        )
+
+        if (
+            "Competition" in header_text
+            and "Round" in header_text
+            and "Solves" in header_text
+        ):
+            return table
+
+    return None
+
+
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False)
+def get_recent_times_from_wca_page(
     player_id,
     event_code,
     num_solves,
 ):
     """
-    Return the competitor's most recent valid solves for an event.
-
-    The person endpoint groups results by competition. We follow the API's
-    competitionIds ordering, then flatten the selected event's rounds and keep
-    the last num_solves valid attempts.
+    Load a WCA person's official profile page filtered to one event,
+    then collect valid attempts from newest results downward.
     """
-    person = fetch_person_data(player_id)
-
-    if not person:
-        return None, None
-
-    name = person.get("name", player_id)
-    results = person.get("results", {}) or {}
-
-    # Prefer competitionIds so we use the API's intended competition ordering.
-    competition_ids = [
-        comp_id
-        for comp_id in person.get("competitionIds", [])
-        if comp_id in results
-    ]
-
-    # Include any result keys not present in competitionIds.
-    seen = set(competition_ids)
-    competition_ids.extend(
-        comp_id
-        for comp_id in results.keys()
-        if comp_id not in seen
+    url = WCA_PERSON_URL.format(
+        wca_id=player_id,
+        event_code=event_code,
     )
+
+    response = requests.get(
+        url,
+        timeout=30,
+        headers=REQUEST_HEADERS,
+    )
+
+    if response.status_code == 404:
+        return None, None, "WCA ID not found"
+
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Person name is the first page-level h2 on the profile.
+    heading = soup.find("h2")
+    name = heading.get_text(" ", strip=True) if heading else player_id
+
+    results_table = find_results_table(soup)
+
+    if results_table is None:
+        return None, name, "Could not find the results table"
 
     solves = []
 
-    for comp_id in competition_ids:
-        competition_results = results.get(comp_id, {})
-        event_results = competition_results.get(event_code, [])
+    # The official profile page is displayed newest competition first
+    # within the selected event. Each result row's final cell contains
+    # the individual attempts.
+    for row in results_table.find_all("tr"):
+        cells = row.find_all("td")
 
-        if not isinstance(event_results, list):
+        if not cells:
             continue
 
-        for round_result in event_results:
-            if not isinstance(round_result, dict):
-                continue
+        solve_cell = cells[-1]
+        solve_text = solve_cell.get_text(" ", strip=True)
 
-            for raw_solve in round_result.get("solves", []):
-                solve = convert_wca_solve_value(
-                    raw_solve,
-                    event_code,
-                )
+        if not solve_text:
+            continue
 
-                if solve is not None:
-                    solves.append(solve)
+        # Pull only tokens that can plausibly represent attempts.
+        # This safely ignores record labels or other decoration.
+        tokens = solve_text.split()
+
+        row_values = []
+
+        for token in tokens:
+            parsed = parse_wca_value(
+                token,
+                event_code,
+            )
+
+            if parsed is not None:
+                row_values.append(parsed)
+
+        # Actual result rows have individual attempts in the last cell.
+        # Header/event separator rows will produce no valid attempts.
+        if row_values:
+            solves.extend(row_values)
+
+        if len(solves) >= num_solves:
+            break
 
     if not solves:
-        return None, name
+        return None, name, "No valid solves found for this event"
 
-    return solves[-num_solves:], name
+    return solves[:num_solves], name, None
 
 
 def build_data_and_kde_with_progress(
@@ -477,9 +518,9 @@ def build_data_and_kde_with_progress(
     event_code,
     num_solves,
 ):
-    data_list = []
-    kde_list = []
-    valid_names = []
+    data_by_id = {}
+    name_by_id = {}
+    error_by_id = {}
 
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -488,59 +529,90 @@ def build_data_and_kde_with_progress(
     start_time = time.time()
     total = len(group_list)
 
-    for i, player_id in enumerate(group_list):
-        elapsed = time.time() - start_time
+    # A small thread pool makes a full competition much faster without
+    # hammering the WCA website with a huge number of simultaneous requests.
+    max_workers = min(5, max(1, total))
 
-        timer_text.markdown(
-            f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**"
-        )
-
-        status_text.markdown(
-            f"🔍 Loading {player_id} ({i + 1} of {total})"
-        )
-
-        try:
-            data, name = get_recent_times_from_api(
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                get_recent_times_from_wca_page,
                 player_id,
                 event_code,
                 num_solves,
+            ): player_id
+            for player_id in group_list
+        }
+
+        completed = 0
+
+        for future in as_completed(futures):
+            player_id = futures[future]
+            completed += 1
+
+            try:
+                data, name, error = future.result()
+            except requests.RequestException as exc:
+                data, name, error = None, player_id, str(exc)
+            except Exception as exc:
+                data, name, error = None, player_id, f"{type(exc).__name__}: {exc}"
+
+            data_by_id[player_id] = data
+            name_by_id[player_id] = name or player_id
+            error_by_id[player_id] = error
+
+            progress_bar.progress(completed / total)
+
+            elapsed = time.time() - start_time
+            status_text.markdown(
+                f"🔍 Loaded {completed} of {total} competitors..."
             )
-        except requests.RequestException as exc:
-            st.warning(
-                f"⚠️ Could not load {player_id}: {exc}"
+            timer_text.markdown(
+                f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**"
             )
-            progress_bar.progress((i + 1) / total)
-            continue
+
+    data_list = []
+    kde_list = []
+    valid_names = []
+
+    # Preserve the original competitor order even though requests ran in parallel.
+    for player_id in group_list:
+        data = data_by_id.get(player_id)
+        name = name_by_id.get(player_id, player_id)
+        error = error_by_id.get(player_id)
 
         if data is None or len(data) < 2:
+            detail = f" ({error})" if error else ""
             st.warning(
-                f"⚠️ Skipping {name or player_id} — "
-                "not enough valid solves for this event."
+                f"⚠️ Skipping {name} ({player_id}) — "
+                f"not enough valid solves.{detail}"
             )
-            progress_bar.progress((i + 1) / total)
             continue
 
-        # gaussian_kde can fail if all values are identical.
         if np.std(data) == 0:
             st.warning(
-                f"⚠️ Skipping {name or player_id} — "
+                f"⚠️ Skipping {name} ({player_id}) — "
                 "all selected solve values are identical."
             )
-            progress_bar.progress((i + 1) / total)
             continue
 
-        kde = gaussian_kde(
-            data,
-            bw_method=0.2,
-        )
+        try:
+            kde = gaussian_kde(
+                data,
+                bw_method=0.2,
+            )
+        except Exception as exc:
+            st.warning(
+                f"⚠️ Skipping {name} ({player_id}) — "
+                f"KDE could not be built: {exc}"
+            )
+            continue
 
         data_list.append(data)
         kde_list.append(kde)
         valid_names.append(
             f"{name} ({player_id})"
         )
-
-        progress_bar.progress((i + 1) / total)
 
     elapsed = time.time() - start_time
 
@@ -701,7 +773,7 @@ if st.button("Submit"):
         start_time = time.time()
 
         st.write(
-            "🔎 Loading competitor results from the WCA results API..."
+            "🔎 Loading recent solves from official WCA profile pages..."
         )
 
         data_list, kde_list, player_names = (
@@ -778,9 +850,11 @@ if st.button("Submit"):
         for j, data in enumerate(data_list):
             kde = kde_list[j]
 
+            padding = max((max(data) - min(data)) * 0.1, 1.0)
+
             x_values = np.linspace(
-                min(data) - 1,
-                max(data) + 1,
+                max(0, min(data) - padding),
+                max(data) + padding,
                 1000,
             )
 
@@ -882,8 +956,6 @@ if st.button("Submit"):
             )
 
             fig.tight_layout()
-
-            # st.pyplot is simpler and avoids embedding a huge base64 string.
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
 
@@ -892,3 +964,9 @@ if st.button("Submit"):
             "Unexpected error while running the simulation."
         )
         st.exception(e)
+'''
+
+path = Path("/mnt/data/app_wca_profiles.py")
+path.write_text(code)
+compile(code, str(path), "exec")
+print(f"Created and syntax-checked {path}")
