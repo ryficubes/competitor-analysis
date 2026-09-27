@@ -2,7 +2,9 @@ import warnings
 import time
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import csv
+import zipfile
+import os
 
 warnings.filterwarnings("ignore")
 
@@ -26,7 +28,7 @@ from bs4 import BeautifulSoup
 # Configuration
 # ============================================================
 
-WCA_PERSON_URL = "https://www.worldcubeassociation.org/persons/{wca_id}?event={event_code}"
+WCA_EXPORT_META_URL = "https://www.worldcubeassociation.org/api/v0/export/public"
 REQUEST_HEADERS = {
     "User-Agent": "competitor-analysis/1.0 (personal analytics project)"
 }
@@ -358,157 +360,576 @@ def display_top_rankings(summary_df):
 
 
 # ============================================================
-# Official WCA profile-page scraper
+# Official WCA results-export loader (v2)
 # ============================================================
 
-def parse_wca_value(text, event_code):
-    """
-    Convert one displayed WCA attempt into a numeric value.
-
-    Examples:
-      7.21     -> 7.21 seconds
-      1:04.02  -> 64.02 seconds
-      42       -> 42 moves for FMC
-      DNF/DNS  -> None
-
-    Record labels and punctuation are stripped before parsing.
-    """
-    if text is None:
-        return None
-
-    value = text.strip().upper()
-
-    if not value or value in {"DNF", "DNS", "-", "—"}:
-        return None
-
-    # Remove common surrounding marks/record labels if they appear.
-    value = value.replace("*", "")
-    value = value.strip("()[]")
-
-    if value in {"DNF", "DNS"}:
-        return None
-
-    # FMC is displayed as a move count.
-    if event_code == "333fm":
-        match = re.fullmatch(r"\d+(?:\.\d+)?", value)
-        return float(value) if match else None
-
-    # Timed result containing minutes, e.g. 1:04.02.
-    minute_match = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", value)
-    if minute_match:
-        minutes = int(minute_match.group(1))
-        seconds = float(minute_match.group(2))
-        return minutes * 60 + seconds
-
-    # Standard seconds value, e.g. 7.21 or 59.96.
-    if re.fullmatch(r"\d+(?:\.\d+)?", value):
-        return float(value)
-
-    return None
+def _normalize_column_name(name):
+    return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
-def find_results_table(soup):
-    """
-    Find the person's results table by looking for the header cells
-    Competition / Round / Solves.
-    """
-    for table in soup.find_all("table"):
-        header_text = " ".join(
-            th.get_text(" ", strip=True)
-            for th in table.find_all("th")
+def _column_index(header, *candidates, required=True):
+    normalized = {
+        _normalize_column_name(name): i
+        for i, name in enumerate(header)
+    }
+
+    for candidate in candidates:
+        key = _normalize_column_name(candidate)
+        if key in normalized:
+            return normalized[key]
+
+    if required:
+        raise ValueError(
+            f"Could not find any of these columns: {candidates}. "
+            f"Available columns: {header}"
         )
 
-        if (
-            "Competition" in header_text
-            and "Round" in header_text
-            and "Solves" in header_text
-        ):
-            return table
-
     return None
+
+
+def _find_tsv_member(names, required_words):
+    """
+    Find a TSV member without hard-coding the full export filename.
+    This makes the code tolerant of prefixes such as WCA_export_....
+    """
+    candidates = []
+
+    for name in names:
+        lower = name.lower()
+
+        if not lower.endswith(".tsv"):
+            continue
+
+        base = os.path.basename(lower)
+
+        if all(word in base for word in required_words):
+            candidates.append(name)
+
+    if not candidates:
+        raise ValueError(
+            f"Could not find TSV file containing {required_words} "
+            "inside the WCA export."
+        )
+
+    # Prefer the shortest matching filename in case the archive has extras.
+    return sorted(candidates, key=len)[0]
+
+
+def _iter_tsv_rows(zip_ref, member_name):
+    """
+    Yield rows from one TSV file inside the ZIP without extracting it.
+    """
+    with zip_ref.open(member_name) as raw:
+        text = io.TextIOWrapper(
+            raw,
+            encoding="utf-8-sig",
+            newline="",
+        )
+
+        reader = csv.reader(
+            text,
+            delimiter="\t",
+        )
+
+        for row in reader:
+            yield row
+
+
+@st.cache_resource(ttl=60 * 60 * 6, show_spinner=False)
+def get_wca_export_file():
+    """
+    Download the current official WCA v2 TSV export once per Cloud Run
+    instance (and refresh the cache every 6 hours).
+
+    The large ZIP is streamed to /tmp rather than loaded into RAM.
+    """
+    meta_response = requests.get(
+        WCA_EXPORT_META_URL,
+        timeout=60,
+        headers=REQUEST_HEADERS,
+    )
+    meta_response.raise_for_status()
+    meta = meta_response.json()
+
+    tsv_url = meta["tsv_url"]
+    export_date = meta.get("export_date", "unknown")
+    export_format_version = meta.get(
+        "export_format_version",
+        "unknown",
+    )
+
+    safe_date = re.sub(
+        r"[^0-9A-Za-z_-]",
+        "_",
+        str(export_date),
+    )
+
+    zip_path = f"/tmp/wca_export_{safe_date}.tsv.zip"
+
+    if not os.path.exists(zip_path):
+        with requests.get(
+            tsv_url,
+            stream=True,
+            timeout=600,
+            headers=REQUEST_HEADERS,
+        ) as response:
+            response.raise_for_status()
+
+            with open(zip_path, "wb") as out:
+                for chunk in response.iter_content(
+                    chunk_size=1024 * 1024,
+                ):
+                    if chunk:
+                        out.write(chunk)
+
+    return (
+        zip_path,
+        export_date,
+        export_format_version,
+    )
+
+
+def _competition_date_map(zip_ref, member_name, wanted_competitions):
+    """
+    Return sortable YYYY-MM-DD-like keys for just the competitions
+    represented in the selected competitors' results.
+    """
+    rows = _iter_tsv_rows(
+        zip_ref,
+        member_name,
+    )
+
+    header = next(rows)
+
+    id_idx = _column_index(
+        header,
+        "id",
+    )
+
+    start_date_idx = _column_index(
+        header,
+        "start_date",
+        "startDate",
+        required=False,
+    )
+
+    year_idx = _column_index(
+        header,
+        "year",
+        required=False,
+    )
+    month_idx = _column_index(
+        header,
+        "month",
+        required=False,
+    )
+    day_idx = _column_index(
+        header,
+        "day",
+        required=False,
+    )
+
+    dates = {}
+
+    for row in rows:
+        if len(row) <= id_idx:
+            continue
+
+        competition_id = row[id_idx]
+
+        if competition_id not in wanted_competitions:
+            continue
+
+        if (
+            start_date_idx is not None
+            and start_date_idx < len(row)
+            and row[start_date_idx]
+        ):
+            dates[competition_id] = row[start_date_idx]
+            continue
+
+        if (
+            year_idx is not None
+            and month_idx is not None
+            and day_idx is not None
+            and max(year_idx, month_idx, day_idx) < len(row)
+        ):
+            try:
+                dates[competition_id] = (
+                    f"{int(row[year_idx]):04d}-"
+                    f"{int(row[month_idx]):02d}-"
+                    f"{int(row[day_idx]):02d}"
+                )
+            except ValueError:
+                dates[competition_id] = ""
+
+    return dates
+
+
+def _person_name_map(zip_ref, member_name, wanted_ids):
+    rows = _iter_tsv_rows(
+        zip_ref,
+        member_name,
+    )
+
+    header = next(rows)
+
+    wca_id_idx = _column_index(
+        header,
+        "wca_id",
+        "wcaId",
+        "id",
+    )
+
+    name_idx = _column_index(
+        header,
+        "name",
+    )
+
+    sub_id_idx = _column_index(
+        header,
+        "sub_id",
+        "subid",
+        required=False,
+    )
+
+    names = {}
+
+    for row in rows:
+        if len(row) <= max(wca_id_idx, name_idx):
+            continue
+
+        wca_id = row[wca_id_idx]
+
+        if wca_id not in wanted_ids:
+            continue
+
+        if (
+            sub_id_idx is not None
+            and sub_id_idx < len(row)
+            and row[sub_id_idx] not in {"", "1"}
+        ):
+            continue
+
+        names[wca_id] = row[name_idx]
+
+    return names
+
+
+def _convert_export_attempt(value, event_code):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+
+    # WCA export: -1 = DNF, -2 = DNS, 0 = no result.
+    if value <= 0:
+        return None
+
+    # FMC attempt values are raw move counts.
+    if event_code == "333fm":
+        return float(value)
+
+    # Normal timed events are centiseconds.
+    return value / 100.0
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner=False)
-def get_recent_times_from_wca_page(
-    player_id,
+def load_recent_solves_from_export(
+    player_ids_tuple,
     event_code,
     num_solves,
 ):
     """
-    Load a WCA person's official profile page filtered to one event,
-    then collect valid attempts from newest results downward.
+    Read the official WCA Results Export v2 and return only the data
+    needed by this simulation.
+
+    Important v2 detail:
+      - results contains one row per person/event/round
+      - result_attempts contains the individual solves
+      - result_attempts.result_id links back to results.id
     """
-    url = WCA_PERSON_URL.format(
-        wca_id=player_id,
-        event_code=event_code,
-    )
+    player_ids = list(player_ids_tuple)
+    player_set = set(player_ids)
 
-    response = requests.get(
-        url,
-        timeout=30,
-        headers=REQUEST_HEADERS,
-    )
+    (
+        zip_path,
+        export_date,
+        export_format_version,
+    ) = get_wca_export_file()
 
-    if response.status_code == 404:
-        return None, None, "WCA ID not found"
+    # Fail early if WCA introduces a new major export version.
+    major_version = str(export_format_version).split(".")[0]
 
-    response.raise_for_status()
+    if major_version not in {"2", "unknown"}:
+        raise ValueError(
+            "This app currently supports WCA Results Export v2, "
+            f"but received version {export_format_version}."
+        )
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        names = zip_ref.namelist()
 
-    # Person name is the first page-level h2 on the profile.
-    heading = soup.find("h2")
-    name = heading.get_text(" ", strip=True) if heading else player_id
+        # result_attempts also contains the word "results" in some naming
+        # schemes, so choose results carefully.
+        attempts_member = _find_tsv_member(
+            names,
+            ["result", "attempt"],
+        )
 
-    results_table = find_results_table(soup)
+        results_candidates = [
+            name
+            for name in names
+            if name.lower().endswith(".tsv")
+            and "result" in os.path.basename(name).lower()
+            and "attempt" not in os.path.basename(name).lower()
+        ]
 
-    if results_table is None:
-        return None, name, "Could not find the results table"
+        if not results_candidates:
+            raise ValueError(
+                "Could not find the results TSV file in the WCA export."
+            )
 
-    solves = []
+        results_member = sorted(
+            results_candidates,
+            key=len,
+        )[0]
 
-    # The official profile page is displayed newest competition first
-    # within the selected event. Each result row's final cell contains
-    # the individual attempts.
-    for row in results_table.find_all("tr"):
-        cells = row.find_all("td")
+        competitions_member = _find_tsv_member(
+            names,
+            ["competition"],
+        )
 
-        if not cells:
-            continue
+        persons_member = _find_tsv_member(
+            names,
+            ["person"],
+        )
 
-        solve_cell = cells[-1]
-        solve_text = solve_cell.get_text(" ", strip=True)
+        # ----------------------------------------------------
+        # 1) Scan RESULTS once and retain only selected users/event
+        # ----------------------------------------------------
+        results_rows = _iter_tsv_rows(
+            zip_ref,
+            results_member,
+        )
 
-        if not solve_text:
-            continue
+        results_header = next(results_rows)
 
-        # Pull only tokens that can plausibly represent attempts.
-        # This safely ignores record labels or other decoration.
-        tokens = solve_text.split()
+        result_id_idx = _column_index(
+            results_header,
+            "id",
+        )
 
-        row_values = []
+        person_idx = _column_index(
+            results_header,
+            "person_id",
+            "personId",
+        )
 
-        for token in tokens:
-            parsed = parse_wca_value(
-                token,
+        event_idx = _column_index(
+            results_header,
+            "event_id",
+            "eventId",
+        )
+
+        competition_idx = _column_index(
+            results_header,
+            "competition_id",
+            "competitionId",
+        )
+
+        selected_results = {
+            player_id: []
+            for player_id in player_ids
+        }
+
+        wanted_result_ids = set()
+        wanted_competitions = set()
+
+        for row in results_rows:
+            if len(row) <= max(
+                result_id_idx,
+                person_idx,
+                event_idx,
+                competition_idx,
+            ):
+                continue
+
+            person_id = row[person_idx]
+
+            if person_id not in player_set:
+                continue
+
+            if row[event_idx] != event_code:
+                continue
+
+            result_id = row[result_id_idx]
+            competition_id = row[competition_idx]
+
+            selected_results[person_id].append(
+                {
+                    "result_id": result_id,
+                    "competition_id": competition_id,
+                }
+            )
+
+            wanted_result_ids.add(result_id)
+            wanted_competitions.add(competition_id)
+
+        if not wanted_result_ids:
+            return (
+                {
+                    player_id: {
+                        "name": player_id,
+                        "solves": [],
+                    }
+                    for player_id in player_ids
+                },
+                export_date,
+                export_format_version,
+            )
+
+        # ----------------------------------------------------
+        # 2) Read competition dates for chronological sorting
+        # ----------------------------------------------------
+        competition_dates = _competition_date_map(
+            zip_ref,
+            competitions_member,
+            wanted_competitions,
+        )
+
+        # ----------------------------------------------------
+        # 3) Get display names
+        # ----------------------------------------------------
+        person_names = _person_name_map(
+            zip_ref,
+            persons_member,
+            player_set,
+        )
+
+        # ----------------------------------------------------
+        # 4) Scan RESULT_ATTEMPTS once and keep selected result IDs
+        # ----------------------------------------------------
+        attempt_rows = _iter_tsv_rows(
+            zip_ref,
+            attempts_member,
+        )
+
+        attempts_header = next(attempt_rows)
+
+        attempt_result_idx = _column_index(
+            attempts_header,
+            "result_id",
+            "resultId",
+        )
+
+        attempt_number_idx = _column_index(
+            attempts_header,
+            "attempt_number",
+            "attemptNumber",
+        )
+
+        attempt_value_idx = _column_index(
+            attempts_header,
+            "value",
+        )
+
+        attempts_by_result = {}
+
+        for row in attempt_rows:
+            if len(row) <= max(
+                attempt_result_idx,
+                attempt_number_idx,
+                attempt_value_idx,
+            ):
+                continue
+
+            result_id = row[attempt_result_idx]
+
+            if result_id not in wanted_result_ids:
+                continue
+
+            value = _convert_export_attempt(
+                row[attempt_value_idx],
                 event_code,
             )
 
-            if parsed is not None:
-                row_values.append(parsed)
+            if value is None:
+                continue
 
-        # Actual result rows have individual attempts in the last cell.
-        # Header/event separator rows will produce no valid attempts.
-        if row_values:
-            solves.extend(row_values)
+            try:
+                attempt_number = int(
+                    row[attempt_number_idx]
+                )
+            except ValueError:
+                attempt_number = 999
 
-        if len(solves) >= num_solves:
-            break
+            attempts_by_result.setdefault(
+                result_id,
+                [],
+            ).append(
+                (attempt_number, value)
+            )
 
-    if not solves:
-        return None, name, "No valid solves found for this event"
+        # ----------------------------------------------------
+        # 5) Assemble newest solves for each competitor
+        # ----------------------------------------------------
+        output = {}
 
-    return solves[:num_solves], name, None
+        for player_id in player_ids:
+            result_entries = selected_results.get(
+                player_id,
+                [],
+            )
+
+            # Newest competitions first. Result ID is used as a
+            # deterministic secondary key for multiple rounds on one date.
+            result_entries.sort(
+                key=lambda entry: (
+                    competition_dates.get(
+                        entry["competition_id"],
+                        "",
+                    ),
+                    int(entry["result_id"])
+                    if str(entry["result_id"]).isdigit()
+                    else 0,
+                ),
+                reverse=True,
+            )
+
+            solves = []
+
+            for entry in result_entries:
+                attempts = attempts_by_result.get(
+                    entry["result_id"],
+                    [],
+                )
+
+                attempts.sort(
+                    key=lambda item: item[0]
+                )
+
+                solves.extend(
+                    value
+                    for _, value in attempts
+                )
+
+                if len(solves) >= num_solves:
+                    break
+
+            output[player_id] = {
+                "name": person_names.get(
+                    player_id,
+                    player_id,
+                ),
+                "solves": solves[:num_solves],
+            }
+
+        return (
+            output,
+            export_date,
+            export_format_version,
+        )
 
 
 def build_data_and_kde_with_progress(
@@ -516,74 +937,50 @@ def build_data_and_kde_with_progress(
     event_code,
     num_solves,
 ):
-    data_by_id = {}
-    name_by_id = {}
-    error_by_id = {}
-
     progress_bar = st.progress(0)
     status_text = st.empty()
     timer_text = st.empty()
 
     start_time = time.time()
-    total = len(group_list)
 
-    # A small thread pool makes a full competition much faster without
-    # hammering the WCA website with a huge number of simultaneous requests.
-    max_workers = min(5, max(1, total))
+    status_text.markdown(
+        "📦 Loading the official WCA Results Export..."
+    )
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                get_recent_times_from_wca_page,
-                player_id,
-                event_code,
-                num_solves,
-            ): player_id
-            for player_id in group_list
-        }
+    (
+        competitor_data,
+        export_date,
+        export_format_version,
+    ) = load_recent_solves_from_export(
+        tuple(group_list),
+        event_code,
+        num_solves,
+    )
 
-        completed = 0
-
-        for future in as_completed(futures):
-            player_id = futures[future]
-            completed += 1
-
-            try:
-                data, name, error = future.result()
-            except requests.RequestException as exc:
-                data, name, error = None, player_id, str(exc)
-            except Exception as exc:
-                data, name, error = None, player_id, f"{type(exc).__name__}: {exc}"
-
-            data_by_id[player_id] = data
-            name_by_id[player_id] = name or player_id
-            error_by_id[player_id] = error
-
-            progress_bar.progress(completed / total)
-
-            elapsed = time.time() - start_time
-            status_text.markdown(
-                f"🔍 Loaded {completed} of {total} competitors..."
-            )
-            timer_text.markdown(
-                f"⏱️ Elapsed Time: **{elapsed:.1f} seconds**"
-            )
+    progress_bar.progress(0.75)
 
     data_list = []
     kde_list = []
     valid_names = []
 
-    # Preserve the original competitor order even though requests ran in parallel.
-    for player_id in group_list:
-        data = data_by_id.get(player_id)
-        name = name_by_id.get(player_id, player_id)
-        error = error_by_id.get(player_id)
+    total = len(group_list)
+
+    for i, player_id in enumerate(group_list):
+        info = competitor_data.get(
+            player_id,
+            {
+                "name": player_id,
+                "solves": [],
+            },
+        )
+
+        name = info["name"]
+        data = info["solves"]
 
         if data is None or len(data) < 2:
-            detail = f" ({error})" if error else ""
             st.warning(
                 f"⚠️ Skipping {name} ({player_id}) — "
-                f"not enough valid solves.{detail}"
+                "not enough valid solves for this event."
             )
             continue
 
@@ -612,14 +1009,20 @@ def build_data_and_kde_with_progress(
             f"{name} ({player_id})"
         )
 
+        progress_bar.progress(
+            0.75 + 0.25 * ((i + 1) / total)
+        )
+
     elapsed = time.time() - start_time
 
     status_text.markdown(
-        f"✅ Done! Processed **{len(valid_names)} competitors**."
+        f"✅ Done! Processed **{len(valid_names)} competitors** "
+        f"using WCA export **v{export_format_version}**."
     )
 
     timer_text.markdown(
-        f"⏱️ Data Loading Time: **{elapsed:.1f} seconds**"
+        f"⏱️ Data Loading Time: **{elapsed:.1f} seconds**  \n"
+        f"📅 WCA export date: **{export_date}**"
     )
 
     return data_list, kde_list, valid_names
@@ -771,7 +1174,7 @@ if st.button("Submit"):
         start_time = time.time()
 
         st.write(
-            "🔎 Loading recent solves from official WCA profile pages..."
+            "🔎 Loading recent solves from the official WCA Results Export..."
         )
 
         data_list, kde_list, player_names = (
