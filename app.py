@@ -5,7 +5,6 @@ import re
 import csv
 import zipfile
 import os
-import io
 
 warnings.filterwarnings("ignore")
 
@@ -309,6 +308,7 @@ def simulate_rounds_behavioral(
 
 
 def summarize_simulation_results(df):
+    # Base averages across all simulations.
     df_summary = (
         df.groupby("Competitor")
         .agg(
@@ -324,6 +324,42 @@ def summarize_simulation_results(df):
         .reset_index()
     )
 
+    # Probability of reaching the final.
+    # Advanced_R2 is True when the competitor appears in final_indices.
+    finals_probability = (
+        df.groupby("Competitor")["Advanced_R2"]
+        .mean()
+        .reset_index(name="Finals_Probability")
+    )
+
+    # Win probability = percentage of all simulations where placement == 1.
+    win_probability = (
+        df.assign(Won=df["Final_Placement"].eq(1))
+        .groupby("Competitor")["Won"]
+        .mean()
+        .reset_index(name="Win_Probability")
+    )
+
+    # Podium probability = percentage of all simulations where placement is 1-3.
+    podium_probability = (
+        df.assign(
+            Podium=df["Final_Placement"].notna()
+            & df["Final_Placement"].le(3)
+        )
+        .groupby("Competitor")["Podium"]
+        .mean()
+        .reset_index(name="Podium_Probability")
+    )
+
+    df_summary = (
+        df_summary
+        .merge(finals_probability, on="Competitor", how="left")
+        .merge(win_probability, on="Competitor", how="left")
+        .merge(podium_probability, on="Competitor", how="left")
+    )
+
+    # Estimated rank still uses the best available simulated performance:
+    # Final > Round 2 > Round 1.
     df_summary["Estimated_Performance"] = (
         df_summary["Ao5_Final"]
         .fillna(df_summary["Ao5_Round2"])
@@ -340,6 +376,19 @@ def summarize_simulation_results(df):
         lambda x: int(x) if not pd.isna(x) else "Not Ranked"
     )
 
+    # Friendly percentage strings for the Streamlit table.
+    df_summary["Win %"] = (
+        df_summary["Win_Probability"] * 100
+    ).map(lambda x: f"{x:.1f}%")
+
+    df_summary["Podium %"] = (
+        df_summary["Podium_Probability"] * 100
+    ).map(lambda x: f"{x:.1f}%")
+
+    df_summary["Finals %"] = (
+        df_summary["Finals_Probability"] * 100
+    ).map(lambda x: f"{x:.1f}%")
+
     return df_summary.sort_values(
         "Estimated_Rank",
         na_position="last",
@@ -353,10 +402,24 @@ def display_top_rankings(summary_df):
         subset=["Estimated_Rank"]
     ).sort_values("Estimated_Rank")
 
+    display_df = ranked_df[
+        [
+            "Competitor",
+            "Estimated_Rank_Display",
+            "Win %",
+            "Podium %",
+            "Finals %",
+        ]
+    ].copy()
+
+    display_df = display_df.rename(
+        columns={
+            "Estimated_Rank_Display": "Estimated Rank",
+        }
+    )
+
     st.table(
-        ranked_df[
-            ["Competitor", "Estimated_Rank_Display"]
-        ].reset_index(drop=True)
+        display_df.reset_index(drop=True)
     )
 
 
