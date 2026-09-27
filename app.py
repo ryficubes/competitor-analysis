@@ -510,7 +510,6 @@ if st.button("Submit"):
             st.stop()
 
         start_time = time.time()
-        st.write("⏳ Downloading WCA export…")
 
         meta = requests.get("https://www.worldcubeassociation.org/api/v0/export/public",timeout=60).json()
 
@@ -525,15 +524,15 @@ if st.button("Submit"):
                     if chunk:
                         tmp.write(chunk)
                         
-        tmp.flush()
+            tmp.flush()
+        
+            st.write("🔎 Filtering only your competitors + event from the SQL...")
     
-        st.write("🔎 Filtering only your competitors + event from the SQL...")
-
-        all_lines = load_sql_lines_filtered(
-            new_option,
-            user_list,
-            zip_path=tmp.name
-        )
+            all_lines = load_sql_lines_filtered(
+                new_option,
+                user_list,
+                zip_path=tmp.name
+            )
 
         if not all_lines:
             st.error("No matching results found for your WCA IDs and event. "
